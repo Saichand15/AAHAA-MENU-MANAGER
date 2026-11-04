@@ -11,6 +11,10 @@ const DESIGN_STORAGE_KEY = "aahaaMenuDesign";
 const DEFAULT_DESIGN = {
   headingFont: "'Poppins', sans-serif",
   bodyFont: "'Merriweather', serif",
+  headingWeight: 700,
+  itemNameWeight: 500,
+  priceWeight: 700,
+  descStyle: "normal",
   accentColor: "#d84727",
   itemFontSize: 16,
   columnCount: 2,
@@ -416,12 +420,20 @@ function applyDesign() {
   const root = document.documentElement.style;
   root.setProperty("--heading-font", designData.headingFont);
   root.setProperty("--body-font", designData.bodyFont);
+  root.setProperty("--heading-weight", designData.headingWeight);
+  root.setProperty("--item-name-weight", designData.itemNameWeight);
+  root.setProperty("--price-weight", designData.priceWeight);
+  root.setProperty("--desc-style", designData.descStyle);
   root.setProperty("--accent", designData.accentColor);
   root.setProperty("--item-font-size", designData.itemFontSize + "px");
   root.setProperty("--column-count", designData.columnCount);
 
   document.getElementById("headingFont").value = designData.headingFont;
   document.getElementById("bodyFont").value = designData.bodyFont;
+  document.getElementById("headingWeight").value = String(designData.headingWeight);
+  document.getElementById("itemNameWeight").value = String(designData.itemNameWeight);
+  document.getElementById("priceWeight").value = String(designData.priceWeight);
+  document.getElementById("descStyle").value = designData.descStyle;
   document.getElementById("accentColor").value = designData.accentColor;
   document.getElementById("itemFontSize").value = designData.itemFontSize;
   document.getElementById("itemFontSizeLabel").textContent = designData.itemFontSize + "px";
@@ -843,6 +855,10 @@ function closeDesignModal() {
 function handleDesignChange() {
   designData.headingFont = document.getElementById("headingFont").value;
   designData.bodyFont = document.getElementById("bodyFont").value;
+  designData.headingWeight = parseInt(document.getElementById("headingWeight").value, 10);
+  designData.itemNameWeight = parseInt(document.getElementById("itemNameWeight").value, 10);
+  designData.priceWeight = parseInt(document.getElementById("priceWeight").value, 10);
+  designData.descStyle = document.getElementById("descStyle").value;
   designData.accentColor = document.getElementById("accentColor").value;
   designData.itemFontSize = parseInt(document.getElementById("itemFontSize").value, 10);
   designData.columnCount = parseInt(document.getElementById("columnCount").value, 10);
@@ -958,6 +974,10 @@ document.getElementById("designCloseBtn").addEventListener("click", closeDesignM
 document.getElementById("designResetBtn").addEventListener("click", resetDesign);
 document.getElementById("headingFont").addEventListener("change", handleDesignChange);
 document.getElementById("bodyFont").addEventListener("change", handleDesignChange);
+document.getElementById("headingWeight").addEventListener("change", handleDesignChange);
+document.getElementById("itemNameWeight").addEventListener("change", handleDesignChange);
+document.getElementById("priceWeight").addEventListener("change", handleDesignChange);
+document.getElementById("descStyle").addEventListener("change", handleDesignChange);
 document.getElementById("accentColor").addEventListener("input", handleDesignChange);
 document.getElementById("itemFontSize").addEventListener("input", handleDesignChange);
 document.getElementById("columnCount").addEventListener("change", handleDesignChange);

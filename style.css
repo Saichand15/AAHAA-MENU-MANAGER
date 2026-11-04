@@ -5,6 +5,10 @@
   --accent-light: #f5a623;
   --heading-font: 'Poppins', sans-serif;
   --body-font: 'Merriweather', serif;
+  --heading-weight: 700;
+  --item-name-weight: 500;
+  --price-weight: 700;
+  --desc-style: normal;
   --item-font-size: 16px;
   --column-count: 2;
 }
@@ -156,7 +160,7 @@ body {
 .legend-title {
   color: #1a1a1a;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: var(--heading-weight);
   letter-spacing: 1px;
   text-transform: uppercase;
 }
@@ -207,7 +211,7 @@ body {
   font-family: var(--heading-font);
   font-size: 10px;
   color: var(--accent);
-  font-weight: 700;
+  font-weight: var(--heading-weight);
   letter-spacing: 2px;
   text-transform: uppercase;
   text-align: center;
@@ -250,6 +254,7 @@ body {
   font-size: 11px;
   border-radius: 6px;
   font-family: var(--heading-font);
+  font-weight: var(--heading-weight);
 }
 
 .section {
@@ -265,6 +270,7 @@ body {
 .section h2 {
   font-family: var(--heading-font);
   font-size: 17px;
+  font-weight: var(--heading-weight);
   color: #fff;
   background: var(--accent);
   display: inline-block;
@@ -315,12 +321,16 @@ body {
   align-items: flex-start;
   gap: 10px;
 }
-.item .name { flex: 1; min-width: 0; }
+.item .name {
+  flex: 1;
+  min-width: 0;
+  font-weight: var(--item-name-weight);
+}
 .item .name .spice { white-space: nowrap; color: #c81d11; filter: saturate(1.4); }
 .item .name .veg-icon,
 .item .name .nonveg-icon { margin-left: 2px; }
 .item .price {
-  font-weight: 700;
+  font-weight: var(--price-weight);
   color: var(--accent);
   white-space: nowrap;
   font-family: var(--heading-font);
@@ -330,7 +340,7 @@ body {
 }
 .item-desc {
   font-size: calc(var(--item-font-size) - 4px);
-  font-style: normal;
+  font-style: var(--desc-style);
   color: #6b6358;
   margin-top: 2px;
   line-height: 1.25;
