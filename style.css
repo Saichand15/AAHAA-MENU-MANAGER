@@ -95,15 +95,6 @@ body {
   position: relative;
 }
 
-/* Keep fixed page size for most pages, but let the last screen page collapse
-   to content so large trailing blank space does not look broken. */
-.page:last-child {
-  min-height: auto;
-}
-.page:last-child .page-body {
-  flex: 0;
-}
-
 /* Decorative four-sided border frame, like the original printed menu */
 .page-frame {
   position: absolute;
@@ -246,7 +237,7 @@ body {
 .col-divider::after { bottom: -6px; }
 
 .page-footer {
-  margin-top: 14px;
+  margin-top: auto;
   background: var(--accent);
   color: #fff;
   text-align: center;
