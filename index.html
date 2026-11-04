@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aahaa Indian Kitchen - Menu Manager</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;900&family=Merriweather:wght@300;400;700&family=Playfair+Display:wght@500;700;900&family=Montserrat:wght@400;600;700;900&family=Oswald:wght@400;600;700&family=Raleway:wght@400;600;700&family=Cinzel:wght@500;700;900&family=Lora:wght@400;600;700&family=Open+Sans:wght@400;600;700&family=Roboto:wght@400;500;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="assets/vendor/html2pdf.bundle.min.js"></script>
+</head>
+<body>
+
+<!-- ===== TOP TOOLBAR (admin controls, hidden on PDF/print) ===== -->
+<div class="toolbar">
+  <div class="toolbar-left">
+    <img src="assets/logo.png" alt="Aahaa Indian Kitchen" class="toolbar-logo">
+    <span class="toolbar-title">Menu Manager</span>
+  </div>
+  <div class="toolbar-right">
+    <button id="addItemBtn" class="btn btn-outline">+ Add Item</button>
+    <button id="addSectionBtn" class="btn btn-outline">+ Add Section</button>
+    <button id="designBtn" class="btn btn-outline">🎨 Design</button>
+    <button id="printBtn" class="btn btn-outline">🖨 Print</button>
+    <button id="resetBtn" class="btn btn-ghost">Reset to Default</button>
+    <button id="downloadBtn" class="btn btn-primary">⬇ Download PDF</button>
+  </div>
+</div>
+
+<!-- ===== PAGE NAVIGATION (screen only, hidden on PDF/print) ===== -->
+<div class="page-nav">
+  <button id="prevPageBtn" class="btn btn-ghost">&lsaquo; Prev Page</button>
+  <span id="pageIndicator">Page 1 / 1</span>
+  <button id="nextPageBtn" class="btn btn-ghost">Next Page &rsaquo;</button>
+</div>
+
+<!-- ===== MENU DOCUMENT (booklet pages - this exact area becomes the PDF) ===== -->
+<div id="menuWrapper">
+  <div id="pagesContainer">
+    <!-- .page elements injected by script.js, one per printed page -->
+  </div>
+</div>
+
+<!-- ===== ADD / EDIT ITEM MODAL ===== -->
+<div id="itemModal" class="modal hidden">
+  <div class="modal-box">
+    <h3 id="modalTitle">Add Item</h3>
+    <label>Section
+      <select id="itemSection"></select>
+    </label>
+    <label>Item Name
+      <input type="text" id="itemName" placeholder="e.g. Butter Chicken">
+    </label>
+    <label>Description (short recipe line shown under the name)
+      <input type="text" id="itemDesc" placeholder="e.g. Tandoori chicken simmered in velvety tomato butter gravy.">
+    </label>
+    <label>Price (use | to separate multiple, e.g. 16.99 | 19.99)
+      <input type="text" id="itemPrice" placeholder="e.g. $15.99">
+    </label>
+    <label>Spice Level
+      <select id="itemSpice">
+        <option value="">None</option>
+        <option value="🌶">Mild</option>
+        <option value="🌶🌶">Medium</option>
+        <option value="🌶🌶🌶">Hot</option>
+      </select>
+    </label>
+    <label>Veg / Non-Veg
+      <select id="itemVeg">
+        <option value="none">None</option>
+        <option value="veg">Veg</option>
+        <option value="nonveg">Non-Veg</option>
+        <option value="both">Both (Veg &amp; Non-Veg)</option>
+      </select>
+    </label>
+    <div class="modal-actions">
+      <button id="itemCancelBtn" class="btn btn-ghost">Cancel</button>
+      <button id="itemSaveBtn" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== ADD SECTION MODAL ===== -->
+<div id="sectionModal" class="modal hidden">
+  <div class="modal-box">
+    <h3>Add Section</h3>
+    <label>Section Name
+      <input type="text" id="newSectionName" placeholder="e.g. Beverages">
+    </label>
+    <div class="modal-actions">
+      <button id="sectionCancelBtn" class="btn btn-ghost">Cancel</button>
+      <button id="sectionSaveBtn" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== DESIGN / FONT CUSTOMIZATION MODAL ===== -->
+<div id="designModal" class="modal hidden">
+  <div class="modal-box modal-box-wide">
+    <h3>Customize Menu Design</h3>
+
+    <label>Heading Font (section titles, logo text)
+      <select id="headingFont">
+        <option value="'Poppins', sans-serif">Poppins</option>
+        <option value="'Playfair Display', serif">Playfair Display</option>
+        <option value="'Montserrat', sans-serif">Montserrat</option>
+        <option value="'Oswald', sans-serif">Oswald</option>
+        <option value="'Raleway', sans-serif">Raleway</option>
+        <option value="'Cinzel', serif">Cinzel</option>
+      </select>
+    </label>
+
+    <label>Body Font (item names, descriptions)
+      <select id="bodyFont">
+        <option value="'Merriweather', serif">Merriweather</option>
+        <option value="'Lora', serif">Lora</option>
+        <option value="'Open Sans', sans-serif">Open Sans</option>
+        <option value="'Roboto', sans-serif">Roboto</option>
+        <option value="'Nunito', sans-serif">Nunito</option>
+        <option value="'Poppins', sans-serif">Poppins</option>
+      </select>
+    </label>
+
+    <label>Accent Color (section labels, prices, buttons)
+      <input type="color" id="accentColor" value="#d84727">
+    </label>
+
+    <label>Theme Preset (quick full-style switch)
+      <select id="themePreset">
+        <option value="custom">Custom (current)</option>
+        <option value="classic-spice">Classic Spice</option>
+        <option value="royal-saffron">Royal Saffron</option>
+        <option value="emerald-garden">Emerald Garden</option>
+        <option value="coastal-blue">Coastal Blue</option>
+        <option value="midnight-gold">Midnight Gold</option>
+      </select>
+    </label>
+
+    <label>Header Divider Style (design under section titles)
+      <select id="headerStyle">
+        <option value="fl-diamond">Diamond Line (default)</option>
+        <option value="fl-leaf">Leaf Flourish (like printed menu)</option>
+        <option value="fl-double">Double Line</option>
+        <option value="fl-dots">Dotted Line</option>
+        <option value="fl-ribbon">Ribbon</option>
+        <option value="fl-star">Star</option>
+        <option value="fl-none">None</option>
+      </select>
+    </label>
+
+    <label>Item Text Size (bigger = easier to read, more pages)
+      <input type="range" id="itemFontSize" min="14" max="26" value="16">
+      <span id="itemFontSizeLabel">16px</span>
+    </label>
+
+    <label>Columns per Page
+      <select id="columnCount">
+        <option value="2">2 Columns</option>
+        <option value="1">1 Column</option>
+      </select>
+    </label>
+
+    <div class="modal-actions">
+      <button id="designResetBtn" class="btn btn-ghost">Reset Design</button>
+      <button id="designCloseBtn" class="btn btn-primary">Done</button>
+    </div>
+  </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
