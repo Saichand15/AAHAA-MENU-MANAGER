@@ -6,7 +6,7 @@
 <title>Aahaa Indian Kitchen - Menu Manager</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;900&family=Merriweather:wght@300;400;700&family=Playfair+Display:wght@500;700;900&family=Montserrat:wght@400;600;700;900&family=Oswald:wght@400;600;700&family=Raleway:wght@400;600;700&family=Cinzel:wght@500;700;900&family=Lora:wght@400;600;700&family=Open+Sans:wght@400;600;700&family=Roboto:wght@400;500;700&family=Nunito:wght@400;600;700&family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@400;500;700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=5">
 <script src="assets/vendor/html2pdf.bundle.min.js"></script>
 </head>
 <body>
@@ -18,14 +18,35 @@
     <span class="toolbar-title">Menu Manager</span>
   </div>
   <div class="toolbar-right">
-    <button id="addItemBtn" class="btn btn-outline">+ Add Item</button>
-    <button id="addSectionBtn" class="btn btn-outline">+ Add Section</button>
-    <button id="designBtn" class="btn btn-outline">🎨 Design</button>
+    <button id="previewBtn" class="btn btn-outline">Customer Preview</button>
+    <button id="organizeBtn" class="btn btn-outline manager-only">Pages &amp; Move</button>
+    <button id="addPageBtn" class="btn btn-outline manager-only">+ Add Page</button>
+    <button id="addItemBtn" class="btn btn-outline manager-only">+ Add Item</button>
+    <button id="addSectionBtn" class="btn btn-outline manager-only">+ Add Section</button>
+    <button id="designBtn" class="btn btn-outline manager-only">🎨 Design</button>
     <button id="printBtn" class="btn btn-outline">🖨 Print</button>
-    <button id="resetBtn" class="btn btn-ghost">Reset to Default</button>
+    <button id="resetBtn" class="btn btn-ghost manager-only">Reset to Default</button>
     <button id="downloadBtn" class="btn btn-primary">⬇ Download PDF</button>
+    <details id="moreOptions" class="more-options manager-only">
+      <summary class="btn btn-outline">More options</summary>
+      <div class="more-options-panel">
+        <p class="more-options-note">Manager workspace &middot; saved in this browser only</p>
+        <div class="history-actions">
+          <button id="undoBtn" class="btn btn-light">Undo</button>
+          <button id="redoBtn" class="btn btn-light">Redo</button>
+        </div>
+        <button id="biryaniBtn" class="btn btn-light">Import Biryani List</button>
+        <button id="backupBtn" class="btn btn-light">Download Backup</button>
+        <button id="previousBackupBtn" class="btn btn-light">Pre-update Backup</button>
+        <button id="restoreBtn" class="btn btn-light">Restore Backup</button>
+        <input id="restoreFile" type="file" accept=".json,application/json" hidden>
+        <span id="saveStatus" role="status" aria-live="polite"></span>
+      </div>
+    </details>
   </div>
 </div>
+
+<div id="layoutWarning" class="layout-warning manager-only" role="status" hidden></div>
 
 <!-- ===== PAGE NAVIGATION (screen only, hidden on PDF/print) ===== -->
 <div class="page-nav">
@@ -54,9 +75,17 @@
     <label>Description (short recipe line shown under the name)
       <input type="text" id="itemDesc" placeholder="e.g. Tandoori chicken simmered in velvety tomato butter gravy.">
     </label>
-    <label>Price (use | to separate multiple, e.g. 16.99 | 19.99)
+    <label id="basePriceLabel">Price (use | to separate existing unlabelled prices)
       <input type="text" id="itemPrice" placeholder="e.g. $15.99">
     </label>
+    <label class="check-label"><input id="usePortions" type="checkbox"> Use named portions for this item only</label>
+    <fieldset id="portionEditor" hidden>
+      <legend>Portions and prices</legend>
+      <p class="help">Choose any sizes. Remove sizes you do not sell.</p>
+      <div id="portionRows"></div>
+      <button id="addPortionBtn" class="btn btn-light" type="button">+ Add portion</button>
+    </fieldset>
+    <label class="check-label"><input id="itemAvailable" type="checkbox" checked> Available (uncheck to hide from customers and exports)</label>
     <label>Spice Level
       <select id="itemSpice">
         <option value="">None</option>
@@ -83,13 +112,55 @@
 <!-- ===== ADD SECTION MODAL ===== -->
 <div id="sectionModal" class="modal hidden">
   <div class="modal-box">
-    <h3>Add Section</h3>
+    <h3 id="sectionModalTitle">Add Section</h3>
     <label>Section Name
       <input type="text" id="newSectionName" placeholder="e.g. Beverages">
     </label>
+    <label>Page<select id="sectionPage"></select></label>
+    <label>Column<select id="sectionColumn"><option value="0">Left / Single</option><option value="1">Right</option></select></label>
     <div class="modal-actions">
       <button id="sectionCancelBtn" class="btn btn-ghost">Cancel</button>
       <button id="sectionSaveBtn" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="organizeModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="organizeTitle">
+  <div class="modal-box organizer-box">
+    <h3 id="organizeTitle">Pages &amp; content</h3>
+    <p class="help">Drag a section heading to another section to insert before it, or onto a column to append. Drop an item onto another item to insert before it, or onto a section to append there. Use Move for touch or keyboard. Blank pages are kept. Moving an item to an empty column keeps its section name.</p>
+    <div class="modal-actions">
+      <button id="organizerAddPageBtn" class="btn btn-light">+ Add Page</button>
+      <button id="organizeCloseBtn" class="btn btn-primary">Done</button>
+    </div>
+    <div id="pageBoard"></div>
+  </div>
+</div>
+
+<div id="moveModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="moveTitle">
+  <div class="modal-box">
+    <h3 id="moveTitle">Move content</h3>
+    <label>Destination page<select id="movePage"></select></label>
+    <label>Column<select id="moveColumn"><option value="0">Left / Single</option><option value="1">Right</option></select></label>
+    <label id="moveSectionLabel">Destination section<select id="moveSection"></select></label>
+    <div class="modal-actions">
+      <button id="moveCancelBtn" class="btn btn-light">Cancel</button>
+      <button id="moveSaveBtn" class="btn btn-primary">Move</button>
+    </div>
+  </div>
+</div>
+
+<div id="biryaniModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="biryaniTitle">
+  <div class="modal-box organizer-box">
+    <h3 id="biryaniTitle">Review &amp; import biryani prices</h3>
+    <p class="help">Pre-filled from your supplied price sheet. Edit before importing. Tab-separated columns: Name, Single, Regular, Family Pack, Jumbo, Spice choices, Diet (veg/nonveg/none). Blank prices omit that portion. Confirm dietary labels; plain Avakaya is unspecified. Import replaces all items in sections with the selected name, including continuations on other pages. Other sections are kept. Download a backup first.</p>
+    <label>Replace items in section<select id="biryaniSection"></select></label>
+    <label>Price sheet<textarea id="biryaniSheet" rows="15" spellcheck="false"></textarea></label>
+    <div id="biryaniReview" class="help" role="status"></div>
+    <div class="modal-actions">
+      <button id="biryaniCancelBtn" class="btn btn-light">Cancel</button>
+      <button id="biryaniReviewBtn" class="btn btn-light">Review Prices</button>
+      <button id="biryaniSaveBtn" class="btn btn-primary">Replace Section Items</button>
     </div>
   </div>
 </div>
@@ -203,6 +274,6 @@
   </div>
 </div>
 
-<script src="script.js"></script>
+<script src="script.js?v=5"></script>
 </body>
 </html>

@@ -55,6 +55,23 @@ const THEME_PRESETS = {
   }
 };
 
+const PORTION_LABELS = ["Single", "Regular", "Family Pack", "Jumbo"];
+const BIRYANI_SHEET = [
+  ["Veg Dum Biryani", "11.99", "16.99", "35.99", "49.99", "Medium, Spicy", "veg"],
+  ["Hyderabadi Chicken Dum", "12.99", "17.99", "37.99", "54.99", "Medium, Spicy", "nonveg"],
+  ["Hyderabadi Goat Dum", "13.99", "18.99", "44.99", "59.99", "Medium, Spicy", "nonveg"],
+  ["Vijayawada Dum Chicken", "12.99", "17.99", "37.99", "54.99", "Medium, Spicy", "nonveg"],
+  ["Mutton Ghee Roast Biryani", "13.99", "18.99", "44.99", "59.99", "Medium, Spicy", "nonveg"],
+  ["Nattu Kodi Chicken Fry Piece Biryani", "12.99", "17.99", "37.99", "54.99", "Medium, Spicy", "nonveg"],
+  ["Nizam Biryani (Cashew) Chicken Biryani", "13.99", "18.99", "44.99", "59.99", "Medium, Spicy", "nonveg"],
+  ["Chicken 65 Biryani", "12.99", "17.99", "37.99", "54.99", "Medium, Spicy", "nonveg"],
+  ["Aahaa Spl Paneer", "12.99", "17.99", "36.99", "50.99", "Medium, Spicy", "veg"],
+  ["Aahaa Spl Egg", "11.99", "16.99", "35.99", "49.99", "Medium, Spicy", "nonveg"],
+  ["Gongura Chicken", "12.99", "17.99", "37.99", "54.99", "Medium, Spicy", "nonveg"],
+  ["Aahaa Avakaya Chicken Biryani", "12.99", "17.99", "37.99", "54.99", "Medium, Spicy", "nonveg"],
+  ["Aahaa Avakaya Biryani", "11.99", "16.99", "35.99", "49.99", "Medium, Spicy", "none"]
+].map(row => row.join("\t")).join("\n");
+
 // ---- Default menu data (only items that were kept / ticked) ----
 // Structured to replicate the ORIGINAL physical menu pages, in the exact
 // page order handwritten on the printed sheets (pages 2 through 10).
@@ -294,14 +311,7 @@ const DEFAULT_MENU = [
   ]},
 
   // ===== PAGE 9 — Biryani + Variety Rice + Combos + Lunch Specials + Parotta Specials =====
-  { page: 9, col: "L", name: "Biryani", items: [
-    { name: "Fish Biryani", spice: "🌶", price: "$18.99", desc: "Spiced fish fillets layered with fragrant basmati rice.", veg: false },
-    { name: "Aahaa Special Boneless Biryani", spice: "🌶🌶", price: "$17.99", desc: "Spiced boneless chicken biryani with aromatic rice.", veg: false },
-    { name: "Gongura Chicken Biryani", spice: "🌶🌶", price: "$17.99", desc: "Biryani layered with chicken and tangy gongura.", veg: false },
-    { name: "Hyderabadi Dum Biryani (Chicken/Goat)", spice: "🌶🌶", price: "$15.99 | $17.99", desc: "Aromatic basmati rice slow cooked with spices.", veg: false },
-    { name: "Chennai Dum Biryani (Chicken/Goat)", spice: "🌶🌶", price: "$15.99 | $17.99", desc: "Traditional Chennai style biryani layered with aromatic spices.", veg: false },
-    { name: "Dindigul Biryani (Veg/Chicken/Goat)", spice: "🌶🌶", price: "$13.99 | $14.99 | $16.99", desc: "Short grain rice slow cooked with aromatic spices.", veg: "both" }
-  ]},
+  { page: 9, col: "L", name: "Biryani", items: parseBiryaniSheet(BIRYANI_SHEET) },
   { page: 9, col: "L", name: "Combos", items: [
     { name: "Idly Vada Combo (2 pcs Idly, 1 Vada)", spice: "", price: "$12.99", desc: "Steamed idlies and crispy vada served with accompaniments.", veg: true },
     { name: "Parotta, Chicken Salna & Omelette", spice: "🌶🌶", price: "$18.99", desc: "Flaky parotta served with chicken salna and omelette.", veg: false },
@@ -351,11 +361,24 @@ const DEFAULT_MENU = [
 ];
 
 // ---- State ----
-let menuData = loadMenu();
+let menuReadFailed = false;
+const storedMenu = loadMenu();
+let menuData = normalizeMenuData(Array.isArray(storedMenu) ? storedMenu : storedMenu.sections);
 let designData = loadDesign();
+let menuPages = Array.isArray(storedMenu.pages) ? storedMenu.pages : [];
+let biryaniLayoutRevision = storedMenu.biryaniLayoutRevision || 0;
 let editingContext = null; // { sectionIndex, itemIndex } or null for new item
 let currentPageIndex = 0;
 let totalPages = 0;
+let editingSectionIndex = null;
+let movingContext = null;
+let draggedContent = null;
+let customerPreview = false;
+let undoHistory = [];
+let redoHistory = [];
+let lastSavedSnapshot = "";
+let layoutCheckFrame = 0;
+const needsBiryaniUpdate = !menuReadFailed && storedMenu.biryaniRevision !== 1;
 
 function normalizeMenuData(rawData) {
   if (!Array.isArray(rawData)) return [];
@@ -370,6 +393,7 @@ function normalizeMenuData(rawData) {
   );
   if (looksNormalized) {
     return rawData.map(section => ({
+      ...section,
       name: section.name,
       items: section.items.map(item => ({ ...item }))
     }));
@@ -393,18 +417,53 @@ function normalizeMenuData(rawData) {
 }
 
 function loadMenu() {
-  const saved = localStorage.getItem(STORAGE_KEY);
-  if (saved) {
-    try { return normalizeMenuData(JSON.parse(saved)); } catch (e) { /* fall through */ }
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) {
+        if (!parsed.every(section => section && typeof section.name === "string" && Array.isArray(section.items) &&
+          section.items.every(item => item && typeof item.name === "string" && typeof item.price === "string"))) {
+          throw new Error("Invalid legacy menu data.");
+        }
+      } else validateDocument(parsed);
+      return parsed;
+    }
+  } catch (error) {
+    menuReadFailed = true;
+    console.error("Could not load saved menu", error);
+    alert("Your saved menu could not be loaded. Defaults are shown. The stored copy has not been overwritten; restore a backup before editing.");
   }
-  return normalizeMenuData(JSON.parse(JSON.stringify(DEFAULT_MENU)));
+  return JSON.parse(JSON.stringify(DEFAULT_MENU));
 }
 
 function saveMenu() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(menuData));
+  if (menuReadFailed) {
+    document.getElementById("saveStatus").textContent = "Not saved - restore a backup or reset first";
+    return false;
+  }
+  const snapshot = documentSnapshot();
+  try {
+    localStorage.setItem(STORAGE_KEY, snapshot);
+  } catch (error) {
+    console.error("Could not save menu", error);
+    alert("The menu could not be saved in this browser. Download a backup now to avoid losing these changes.");
+    document.getElementById("saveStatus").textContent = "Not saved - download a backup";
+    return false;
+  }
+  if (lastSavedSnapshot && lastSavedSnapshot !== snapshot) {
+    undoHistory.push(lastSavedSnapshot);
+    if (undoHistory.length > 40) undoHistory.shift();
+    redoHistory = [];
+  }
+  lastSavedSnapshot = snapshot;
+  document.getElementById("saveStatus").textContent = "Saved in this browser";
+  updateHistoryButtons();
+  return true;
 }
 
 function loadDesign() {
+  if (storedMenu.design) return { ...DEFAULT_DESIGN, ...storedMenu.design };
   const saved = localStorage.getItem(DESIGN_STORAGE_KEY);
   if (saved) {
     try { return { ...DEFAULT_DESIGN, ...JSON.parse(saved) }; } catch (e) { /* fall through */ }
@@ -413,7 +472,12 @@ function loadDesign() {
 }
 
 function saveDesign() {
-  localStorage.setItem(DESIGN_STORAGE_KEY, JSON.stringify(designData));
+  try {
+    localStorage.setItem(DESIGN_STORAGE_KEY, JSON.stringify(designData));
+  } catch (error) {
+    console.error("Could not save menu design", error);
+    alert("The design could not be saved. Download a backup before closing this page.");
+  }
 }
 
 function applyDesign() {
@@ -459,10 +523,12 @@ function detectThemePreset(design) {
 }
 
 function applyThemePreset(presetKey) {
+  if (!requireManager()) return;
   const preset = THEME_PRESETS[presetKey];
   if (!preset) {
     designData.themePreset = "custom";
     saveDesign();
+    saveMenu();
     applyDesign();
     render();
     return;
@@ -475,6 +541,7 @@ function applyThemePreset(presetKey) {
   designData.themePreset = presetKey;
 
   saveDesign();
+  saveMenu();
   applyDesign();
   render();
 }
@@ -487,6 +554,7 @@ function estimateItemUnits(item) {
   if (nameLength > 34) units += 0.25;
   if (nameLength > 55) units += 0.25;
   if (item?.veg === "both") units += 0.15;
+  if (item.portions?.length) units += Math.ceil(item.portions.length / 2) * 0.8;
 
   if (descLength > 0) {
     units += 0.55;
@@ -505,8 +573,8 @@ function nextColumnPosition(position, activeColumns) {
 }
 
 // ---- Pagination: auto-flow sections by estimated content height ----
-function buildPages() {
-  const colsPerPage = designData.columnCount === 1 ? 1 : 2;
+function buildAutoPages(sections = menuData, design = designData) {
+  const colsPerPage = design.columnCount === 1 ? 1 : 2;
   const activeColumns = colsPerPage === 1 ? 1 : 2;
   const columnCapacity = colsPerPage === 1 ? 65 : 33;
   const sectionHeaderUnits = 2.7;
@@ -514,7 +582,7 @@ function buildPages() {
   const pages = [{ cols: [[], []], used: [0, 0] }];
   let position = { page: 0, col: 0 };
 
-  menuData.forEach((section, sectionIndex) => {
+  sections.forEach((section, sectionIndex) => {
     if (!section.items.length) return;
 
     const itemRefs = section.items.map((item, itemIdx) => ({ item, itemIdx }));
@@ -527,7 +595,7 @@ function buildPages() {
       const firstItemUnits = estimateItemUnits(itemRefs[itemPointer].item);
       const requiredUnits = (continued ? 0 : sectionHeaderUnits) + firstItemUnits;
 
-      if (used + requiredUnits > columnCapacity) {
+      if (used > 0 && used + requiredUnits > columnCapacity) {
         position = nextColumnPosition(position, activeColumns);
         if (!pages[position.page]) {
           pages.push({ cols: [[], []], used: [0, 0] });
@@ -576,17 +644,113 @@ function buildPages() {
   return pages.map(p => ({ cols: p.cols }));
 }
 
+function convertLegacyDocument(rawSections, design = designData) {
+  const oldSections = normalizeMenuData(rawSections);
+  const pages = buildAutoPages(oldSections, design);
+  const convertedPages = pages.map((_, index) => ({ id: newPageId(), title: `Page ${index + 1}` }));
+  const convertedSections = [];
+  pages.forEach((page, pageIndex) => page.cols.forEach((chunks, column) => {
+    chunks.forEach(chunk => convertedSections.push({
+      name: chunk.name,
+      pageId: convertedPages[pageIndex].id,
+      column,
+      items: chunk.items.map(ref => ref.item)
+    }));
+  }));
+  oldSections.filter(section => !section.items.length).forEach(section => {
+    convertedSections.push({ ...section, pageId: convertedPages[0].id, column: 0 });
+  });
+  return { version: 2, biryaniRevision: 1, sections: convertedSections, pages: convertedPages, design };
+}
+
+function initializePages() {
+  if (menuPages.length) return;
+  const converted = convertLegacyDocument(menuData);
+  menuData = converted.sections;
+  menuPages = converted.pages;
+}
+
+function arrangeBiryaniPage() {
+  const sections = menuPages.flatMap(page => menuData
+    .filter(section => section.pageId === page.id && section.name.toLowerCase() === "biryani")
+    .sort((left, right) => left.column - right.column));
+  biryaniLayoutRevision = 1;
+  menuData.forEach(section => section.items.forEach(item => {
+    if (!item.spice && item.spiceOptions) item.spice = spiceFromOptions(item.spiceOptions);
+  }));
+  if (!sections.length) return;
+  const first = sections[0];
+  const startIndex = menuPages.findIndex(page => page.id === first.pageId);
+  const sourcePages = new Set(sections.map(section => section.pageId));
+  const combos = menuData.filter(section => section.name.toLowerCase() === "combos");
+  combos.forEach(section => sourcePages.add(section.pageId));
+  const items = sections.flatMap(section => section.items);
+  menuData = menuData.filter(section => !sections.includes(section));
+  const startPage = menuPages[startIndex];
+  const hasOtherContent = menuData.some(section => section.pageId === startPage.id && !combos.includes(section));
+  let featuredPage;
+  let previousPage;
+  if (hasOtherContent) {
+    previousPage = startPage;
+    featuredPage = { id: newPageId(), title: "Biryani", layout: "biryani" };
+    menuPages.splice(startIndex + 1, 0, featuredPage);
+  } else {
+    featuredPage = startPage;
+    featuredPage.title = "Biryani";
+    featuredPage.layout = "biryani";
+    previousPage = menuPages[startIndex - 1];
+    if (!previousPage && combos.length) {
+      previousPage = { id: newPageId(), title: "Combos" };
+      menuPages.splice(startIndex, 0, previousPage);
+    }
+  }
+  combos.forEach(section => {
+    section.pageId = previousPage.id;
+    section.column = designData.columnCount === 1 ? 0 : 1;
+  });
+  menuData.push({ ...first, pageId: featuredPage.id, column: 0, items });
+  menuPages = menuPages.filter(page => page === featuredPage || page === previousPage ||
+    !sourcePages.has(page.id) || menuData.some(section => section.pageId === page.id));
+}
+
+function pageColumnCount(pageId) {
+  return menuPages.find(page => page.id === pageId)?.layout === "biryani" ? 1 :
+    designData.columnCount === 1 ? 1 : 2;
+}
+
+function buildPages() {
+  const cleanView = customerPreview || document.body.classList.contains("pdf-export") || document.body.classList.contains("printing");
+  return menuPages.map(page => {
+    const columns = pageColumnCount(page.id);
+    return {
+      ...page,
+      cols: Array.from({ length: columns }, (_, column) => menuData.flatMap((section, sectionIndex) => {
+        if (section.pageId !== page.id || (columns === 1 ? 0 : section.column) !== column) return [];
+        const items = section.items.map((item, itemIdx) => ({ item, itemIdx }))
+          .filter(ref => !cleanView || ref.item.available !== false);
+        if (cleanView && !items.length) return [];
+        return [{ sectionIndex, name: section.name, items }];
+      }))
+    };
+  });
+}
+
 // ---- Rendering ----
 function render() {
   const pages = buildPages();
-  const colsPerPage = designData.columnCount === 1 ? 1 : 2;
   const container = document.getElementById("pagesContainer");
   container.innerHTML = "";
 
   pages.forEach((page, pageIdx) => {
+    const colsPerPage = pageColumnCount(page.id);
+    const featured = page.layout === "biryani";
+    const portionLabels = [...new Set(page.cols.flatMap(chunks => chunks.flatMap(chunk =>
+      chunk.items.flatMap(ref => (ref.item.portions || []).map(portion => portion.label)))))];
     const pageEl = document.createElement("div");
-    pageEl.className = "page";
+    pageEl.className = "page" + (featured ? " featured-biryani" : "");
+    if (featured) pageEl.style.setProperty("--portion-count", Math.max(1, portionLabels.length));
     pageEl.id = `page-${pageIdx}`;
+    pageEl.dataset.pageId = page.id;
     if (pageIdx < pages.length - 1) pageEl.style.pageBreakAfter = "always";
 
     pageEl.innerHTML = `
@@ -619,19 +783,32 @@ function render() {
     `;
 
     const bodyEl = pageEl.querySelector(".page-body");
+    const pageTools = document.createElement("div");
+    pageTools.className = "page-tools manager-only";
+    pageTools.textContent = `${pageIdx + 1}. ${page.title}`;
+    pageEl.insertBefore(pageTools, pageEl.firstChild);
     page.cols.forEach((colChunks, colIdx) => {
       const colEl = document.createElement("div");
       colEl.className = "page-col";
+      wireDropTarget(colEl, { pageId: page.id, column: colIdx });
 
       colChunks.forEach(chunk => {
         const sectionDiv = document.createElement("div");
         sectionDiv.className = "section" + (chunk.continued ? " section-continued" : "");
+        sectionDiv.dataset.sectionIndex = chunk.sectionIndex;
+        if (!chunk.items.some(ref => ref.item.available !== false)) sectionDiv.classList.add("empty-for-customers");
+        wireDropTarget(sectionDiv, { pageId: page.id, column: colIdx, sectionIndex: chunk.sectionIndex });
 
         if (!chunk.continued) {
           const head = document.createElement("div");
           head.className = "section-head";
           head.innerHTML = `<h2>${escapeHtml(chunk.name)}</h2>
-            <button class="section-del" title="Delete section" onclick="deleteSection(${chunk.sectionIndex})">✕ remove section</button>`;
+            <span class="section-controls manager-only">
+              <button onclick="openSectionModal(${chunk.sectionIndex})" title="Edit section">Edit</button>
+              <button onclick="openMoveModal(${chunk.sectionIndex})" title="Move section">Move</button>
+              <button class="section-del" title="Delete section" onclick="deleteSection(${chunk.sectionIndex})">✕</button>
+            </span>`;
+          wireDragSource(head, { sectionIndex: chunk.sectionIndex });
           sectionDiv.appendChild(head);
 
           const flourish = document.createElement("div");
@@ -639,20 +816,33 @@ function render() {
           flourish.innerHTML = flourishHtml(designData.headerStyle);
           sectionDiv.appendChild(flourish);
         }
+        if (featured && portionLabels.length) {
+          const priceHeader = document.createElement("div");
+          priceHeader.className = "featured-price-header";
+          priceHeader.innerHTML = `<span>Freshly prepared biryani</span><div>${portionLabels.map(label => `<span>${escapeHtml(label)}</span>`).join("")}</div>`;
+          sectionDiv.appendChild(priceHeader);
+        }
 
         chunk.items.forEach(ref => {
           const item = ref.item;
           const row = document.createElement("div");
-          row.className = "item";
+          row.className = "item" + (item.available === false ? " unavailable" : "");
+          wireDragSource(row, { sectionIndex: chunk.sectionIndex, itemIndex: ref.itemIdx });
+          wireDropTarget(row, { pageId: page.id, column: colIdx, sectionIndex: chunk.sectionIndex, itemIndex: ref.itemIdx });
           row.innerHTML = `
             <div class="item-top">
-              <span class="name">${escapeHtml(item.name)}${vegIconHtml(item.veg)}${item.spice ? `&nbsp;<span class="spice">${item.spice}</span>` : ""}</span>
-              <span class="price">${escapeHtml(item.price)}</span>
+              <span class="name">${escapeHtml(item.name)}<span class="item-markers">${vegIconHtml(item.veg)}${item.spice ? `&nbsp;<span class="spice">${escapeHtml(item.spice)}</span>` : ""}</span></span>
+              ${item.portions?.length ? "" : `<span class="price">${escapeHtml(item.price)}</span>`}
               <span class="item-actions">
                 <button title="Edit" onclick="openItemModal(${chunk.sectionIndex}, ${ref.itemIdx})">✎</button>
+                <button title="Move item" onclick="openMoveModal(${chunk.sectionIndex}, ${ref.itemIdx})">Move</button>
                 <button title="Delete" onclick="deleteItem(${chunk.sectionIndex}, ${ref.itemIdx})">✕</button>
               </span>
             </div>
+            ${item.portions?.length ? `<div class="portion-prices">${(featured ? portionLabels.map(label =>
+              item.portions.find(portion => portion.label === label) || { label, price: "-" }) : item.portions)
+              .map(portion => `<div><span>${escapeHtml(portion.label)}</span><strong>${escapeHtml(portion.price)}</strong></div>`).join("")}</div>` : ""}
+            ${item.available === false ? '<div class="availability-label manager-only">Unavailable - hidden from customers</div>' : ""}
             ${item.desc ? `<div class="item-desc">${escapeHtml(item.desc)}</div>` : ""}`;
           sectionDiv.appendChild(row);
         });
@@ -675,11 +865,17 @@ function render() {
   if (currentPageIndex >= totalPages) currentPageIndex = Math.max(0, totalPages - 1);
   updatePageIndicator();
   populateSectionDropdown();
+  if (!document.getElementById("organizeModal").classList.contains("hidden")) renderPageBoard();
+  updateHistoryButtons();
+  cancelAnimationFrame(layoutCheckFrame);
+  layoutCheckFrame = requestAnimationFrame(checkPageOverflow);
 }
 
 // ---- Page navigation (screen view) ----
 function updatePageIndicator() {
   document.getElementById("pageIndicator").textContent = `Page ${totalPages === 0 ? 0 : currentPageIndex + 1} / ${totalPages}`;
+  document.getElementById("prevPageBtn").disabled = currentPageIndex <= 0;
+  document.getElementById("nextPageBtn").disabled = currentPageIndex >= totalPages - 1;
 }
 function goToPage(idx) {
   if (idx < 0 || idx >= totalPages) return;
@@ -719,6 +915,7 @@ function flourishHtml(style) {
 
 // ---- Item CRUD ----
 function deleteItem(sIdx, iIdx) {
+  if (!requireManager()) return;
   if (!confirm("Remove this item from the menu?")) return;
   menuData[sIdx].items.splice(iIdx, 1);
   saveMenu();
@@ -726,6 +923,7 @@ function deleteItem(sIdx, iIdx) {
 }
 
 function deleteSection(sIdx) {
+  if (!requireManager()) return;
   if (!confirm(`Remove the entire "${menuData[sIdx].name}" section?`)) return;
   menuData.splice(sIdx, 1);
   saveMenu();
@@ -733,6 +931,13 @@ function deleteSection(sIdx) {
 }
 
 function openItemModal(sIdx, iIdx) {
+  if (!requireManager()) return;
+  if (!menuData.length) {
+    alert("Create a section first, then add its items.");
+    openSectionModal();
+    return;
+  }
+  document.getElementById("organizeModal").classList.add("hidden");
   editingContext = (sIdx === undefined) ? null : { sIdx, iIdx };
   const modal = document.getElementById("itemModal");
   const title = document.getElementById("modalTitle");
@@ -759,8 +964,16 @@ function openItemModal(sIdx, iIdx) {
     priceInput.value = "";
     spiceInput.value = "";
     vegInput.value = "none";
+    if (sIdx !== undefined) sectionSelect.value = sIdx;
   }
+  const item = editingContext ? menuData[sIdx].items[iIdx] : null;
+  document.getElementById("usePortions").checked = Boolean(item?.portions?.length);
+  document.getElementById("portionRows").innerHTML = "";
+  (item?.portions || PORTION_LABELS.map(label => ({ label, price: "" }))).forEach(addPortionRow);
+  document.getElementById("itemAvailable").checked = item?.available !== false;
+  updatePortionEditor();
   modal.classList.remove("hidden");
+  nameInput.focus();
 }
 
 function vegToSelectValue(veg) {
@@ -785,11 +998,12 @@ function closeItemModal() {
 function populateSectionDropdown() {
   const sectionSelect = document.getElementById("itemSection");
   sectionSelect.innerHTML = menuData
-    .map((s, idx) => `<option value="${idx}">${escapeHtml(s.name)}</option>`)
+    .map((s, idx) => `<option value="${idx}">${escapeHtml(s.name)} - ${escapeHtml(menuPages.find(page => page.id === s.pageId)?.title || "")} (${s.column === 1 ? "Right" : "Left"})</option>`)
     .join("");
 }
 
 function saveItem() {
+  if (!requireManager()) return;
   const name = document.getElementById("itemName").value.trim();
   const desc = document.getElementById("itemDesc").value.trim();
   const price = document.getElementById("itemPrice").value.trim();
@@ -797,22 +1011,32 @@ function saveItem() {
   const veg = selectValueToVeg(document.getElementById("itemVeg").value);
   const sIdx = parseInt(document.getElementById("itemSection").value, 10);
 
-  if (!name || !price) {
-    alert("Please enter both a name and a price.");
+  let portions;
+  try { portions = readPortions(); } catch (error) { alert(error.message); return; }
+  if (!name || (!portions.length && !price)) {
+    alert("Please enter a name and a price (or named portion prices).");
     return;
   }
+  if (!Number.isInteger(sIdx) || !menuData[sIdx]) { alert("Choose a section first."); return; }
+  const previous = editingContext ? menuData[editingContext.sIdx].items[editingContext.iIdx] : {};
+  const updated = {
+    ...previous, name, price: portions.length ? portions.map(portion => portion.price).join(" | ") : price,
+    spice, desc, veg, portions,
+    spiceOptions: "",
+    available: document.getElementById("itemAvailable").checked
+  };
 
   if (editingContext && editingContext.iIdx !== undefined) {
     // editing existing item — if section changed, move it
     const { sIdx: oldS, iIdx: oldI } = editingContext;
     if (oldS === sIdx) {
-      menuData[sIdx].items[oldI] = { name, price, spice, desc, veg };
+      menuData[sIdx].items[oldI] = updated;
     } else {
       menuData[oldS].items.splice(oldI, 1);
-      menuData[sIdx].items.push({ name, price, spice, desc, veg });
+      menuData[sIdx].items.push(updated);
     }
   } else {
-    menuData[sIdx].items.push({ name, price, spice, desc, veg });
+    menuData[sIdx].items.push(updated);
   }
 
   saveMenu();
@@ -821,17 +1045,32 @@ function saveItem() {
 }
 
 // ---- Section CRUD ----
-function openSectionModal() {
-  document.getElementById("newSectionName").value = "";
+function openSectionModal(sectionIndex) {
+  if (!requireManager()) return;
+  document.getElementById("organizeModal").classList.add("hidden");
+  editingSectionIndex = Number.isInteger(sectionIndex) ? sectionIndex : null;
+  const section = editingSectionIndex === null ? null : menuData[editingSectionIndex];
+  document.getElementById("sectionModalTitle").textContent = section ? "Edit Section" : "Add Section";
+  document.getElementById("newSectionName").value = section?.name || "";
+  fillPageSelect("sectionPage", section?.pageId || menuPages[currentPageIndex].id);
+  document.getElementById("sectionColumn").value = String(section?.column || 0);
+  document.getElementById("sectionColumn").disabled = pageColumnCount(selectedPageId("sectionPage")) === 1;
+  if (document.getElementById("sectionColumn").disabled) document.getElementById("sectionColumn").value = "0";
   document.getElementById("sectionModal").classList.remove("hidden");
 }
 function closeSectionModal() {
   document.getElementById("sectionModal").classList.add("hidden");
 }
 function saveSection() {
+  if (!requireManager()) return;
   const name = document.getElementById("newSectionName").value.trim();
   if (!name) { alert("Please enter a section name."); return; }
-  menuData.push({ name, items: [] });
+  const placement = {
+    name, pageId: selectedPageId("sectionPage"),
+    column: pageColumnCount(selectedPageId("sectionPage")) === 1 ? 0 : Number(document.getElementById("sectionColumn").value)
+  };
+  if (editingSectionIndex === null) menuData.push({ ...placement, items: [] });
+  else Object.assign(menuData[editingSectionIndex], placement);
   saveMenu();
   render();
   closeSectionModal();
@@ -839,20 +1078,27 @@ function saveSection() {
 
 // ---- Reset ----
 function resetMenu() {
+  if (!requireManager()) return;
   if (!confirm("Reset the menu back to the original default list? This will discard any changes you made.")) return;
+  menuReadFailed = false;
   menuData = normalizeMenuData(JSON.parse(JSON.stringify(DEFAULT_MENU)));
+  menuPages = [];
+  initializePages();
+  arrangeBiryaniPage();
   saveMenu();
   render();
 }
 
 // ---- Design modal ----
 function openDesignModal() {
+  if (!requireManager()) return;
   document.getElementById("designModal").classList.remove("hidden");
 }
 function closeDesignModal() {
   document.getElementById("designModal").classList.add("hidden");
 }
 function handleDesignChange() {
+  if (!requireManager()) return;
   designData.headingFont = document.getElementById("headingFont").value;
   designData.bodyFont = document.getElementById("bodyFont").value;
   designData.headingWeight = parseInt(document.getElementById("headingWeight").value, 10);
@@ -869,15 +1115,548 @@ function handleDesignChange() {
   designData.themePreset = detectThemePreset(designData);
   document.getElementById("themePreset").value = designData.themePreset;
   saveDesign();
+  saveMenu();
   applyDesign();
   render();
 }
 function resetDesign() {
+  if (!requireManager()) return;
   if (!confirm("Reset fonts, colors and layout back to default?")) return;
   designData = { ...DEFAULT_DESIGN };
   saveDesign();
+  saveMenu();
   applyDesign();
   render();
+}
+
+function newPageId() {
+  return crypto.randomUUID();
+}
+
+function documentSnapshot() {
+  return JSON.stringify({ version: 2, biryaniRevision: 1, biryaniLayoutRevision, sections: menuData, pages: menuPages, design: designData });
+}
+
+function validateDocument(data) {
+  if (!data || data.version !== 2 || !Array.isArray(data.sections) ||
+      !Array.isArray(data.pages) || !data.pages.length) throw new Error("Not a supported menu backup.");
+  const ids = new Set();
+  for (const page of data.pages) {
+    if (!page || typeof page.id !== "string" || ids.has(page.id) || typeof page.title !== "string") {
+      throw new Error("Invalid or duplicate page in backup.");
+    }
+    if (page.layout !== undefined && page.layout !== "biryani") throw new Error("Invalid page layout in backup.");
+    ids.add(page.id);
+  }
+  for (const section of data.sections) {
+    if (!section || typeof section.name !== "string" || !ids.has(section.pageId) ||
+        ![0, 1].includes(section.column) || !Array.isArray(section.items)) throw new Error("Invalid section in backup.");
+    for (const item of section.items) {
+      if (!item || typeof item.name !== "string" || typeof item.price !== "string" ||
+          (item.desc !== undefined && typeof item.desc !== "string") ||
+          (item.spice !== undefined && typeof item.spice !== "string") ||
+          (item.spiceOptions !== undefined && typeof item.spiceOptions !== "string") ||
+          (item.available !== undefined && typeof item.available !== "boolean") ||
+          (item.veg !== undefined && ![true, false, "both"].includes(item.veg))) throw new Error("Invalid item in backup.");
+      if (item.portions !== undefined && (!Array.isArray(item.portions) || item.portions.some(portion =>
+        !portion || typeof portion.label !== "string" || !portion.label.trim() ||
+        typeof portion.price !== "string" || !/^\$\d+\.\d{2}$/.test(portion.price)))) {
+        throw new Error("Invalid portion prices in backup.");
+      }
+    }
+  }
+  if (data.design !== undefined) {
+    for (const [key, value] of Object.entries(data.design)) {
+      if (!(key in DEFAULT_DESIGN) || typeof value !== typeof DEFAULT_DESIGN[key]) throw new Error("Invalid design in backup.");
+    }
+    const design = { ...DEFAULT_DESIGN, ...data.design };
+    if (![1, 2].includes(design.columnCount) || design.itemFontSize < 14 || design.itemFontSize > 26 ||
+        !/^#[0-9a-f]{6}$/i.test(design.accentColor)) throw new Error("Invalid layout in backup.");
+  }
+}
+
+function requireManager() {
+  if (!customerPreview && !document.body.classList.contains("pdf-export")) return true;
+  alert("Return to the manager workspace to edit the menu.");
+  return false;
+}
+
+function updateHistoryButtons() {
+  document.getElementById("undoBtn").disabled = !undoHistory.length;
+  document.getElementById("redoBtn").disabled = !redoHistory.length;
+}
+
+function restoreSnapshot(snapshot) {
+  const data = JSON.parse(snapshot);
+  validateDocument(data);
+  menuReadFailed = false;
+  menuData = data.sections;
+  menuPages = data.pages;
+  biryaniLayoutRevision = data.biryaniLayoutRevision || 0;
+  designData = { ...DEFAULT_DESIGN, ...data.design };
+  applyDesign();
+  render();
+}
+
+function travelHistory(redo = false) {
+  if (!requireManager()) return;
+  const from = redo ? redoHistory : undoHistory;
+  const to = redo ? undoHistory : redoHistory;
+  if (!from.length) return;
+  const snapshot = from[from.length - 1];
+  try {
+    localStorage.setItem(STORAGE_KEY, snapshot);
+  } catch (error) {
+    console.error("Could not save history", error);
+    alert("Could not save this change. Download a backup before continuing.");
+    return;
+  }
+  to.push(documentSnapshot());
+  from.pop();
+  lastSavedSnapshot = snapshot;
+  restoreSnapshot(snapshot);
+  saveDesign();
+}
+
+function fillPageSelect(id, selectedId) {
+  const select = document.getElementById(id);
+  select.innerHTML = menuPages.map((page, index) => `<option value="${index}">${index + 1}. ${escapeHtml(page.title)}</option>`).join("");
+  select.value = String(Math.max(0, menuPages.findIndex(page => page.id === selectedId)));
+}
+
+function selectedPageId(id) {
+  return menuPages[Number(document.getElementById(id).value)]?.id;
+}
+
+function addPage() {
+  if (!requireManager()) return;
+  menuPages.push({ id: newPageId(), title: `Page ${menuPages.length + 1}` });
+  saveMenu();
+  render();
+  goToPage(menuPages.length - 1);
+}
+
+function renamePage(index, title) {
+  if (!requireManager()) return;
+  if (!title.trim()) { alert("Enter a page title."); renderPageBoard(); return; }
+  menuPages[index].title = title.trim();
+  saveMenu();
+  render();
+}
+
+function reorderPage(index, direction) {
+  if (!requireManager()) return;
+  const destination = index + direction;
+  if (destination < 0 || destination >= menuPages.length) return;
+  [menuPages[index], menuPages[destination]] = [menuPages[destination], menuPages[index]];
+  saveMenu();
+  render();
+}
+
+function deletePage(index) {
+  if (!requireManager()) return;
+  if (menuPages.length === 1) { alert("Keep at least one menu page."); return; }
+  const page = menuPages[index];
+  if (menuData.some(section => section.pageId === page.id && section.items.length)) {
+    alert("Move this page's items to another page first. This prevents accidental menu loss.");
+    return;
+  }
+  if (!confirm(`Delete empty page "${page.title}" and its empty sections?`)) return;
+  menuData = menuData.filter(section => section.pageId !== page.id);
+  menuPages.splice(index, 1);
+  saveMenu();
+  render();
+}
+
+function wireDragSource(element, source) {
+  element.draggable = !customerPreview;
+  element.addEventListener("dragstart", event => {
+    if (!requireManager() || event.target.closest("button,input,select")) { event.preventDefault(); return; }
+    event.stopPropagation();
+    draggedContent = source;
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", "aahaa-menu-content");
+    element.classList.add("dragging");
+  });
+  element.addEventListener("dragend", () => {
+    draggedContent = null;
+    document.querySelectorAll(".drop-target,.dragging").forEach(node => node.classList.remove("drop-target", "dragging"));
+  });
+}
+
+function wireDropTarget(element, destination) {
+  element.addEventListener("dragover", event => {
+    if (!draggedContent || customerPreview) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = "move";
+    element.classList.add("drop-target");
+  });
+  element.addEventListener("dragleave", () => element.classList.remove("drop-target"));
+  element.addEventListener("drop", event => {
+    if (!draggedContent || customerPreview) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const source = draggedContent;
+    draggedContent = null;
+    moveContent(source, destination);
+  });
+}
+
+function moveContent(source, destination) {
+  if (!requireManager()) return;
+  const sourceSection = menuData[source.sectionIndex];
+  if (!sourceSection || !menuPages.some(page => page.id === destination.pageId)) {
+    alert("The selected content or destination no longer exists.");
+    return;
+  }
+  const column = pageColumnCount(destination.pageId) === 1 ? 0 : destination.column;
+  let targetSection = menuData[destination.sectionIndex];
+  if (source.itemIndex === undefined) {
+    if (sourceSection === targetSection) return;
+    menuData.splice(source.sectionIndex, 1);
+    sourceSection.pageId = destination.pageId;
+    sourceSection.column = column;
+    const targetIndex = targetSection ? menuData.indexOf(targetSection) : menuData.length;
+    menuData.splice(targetIndex, 0, sourceSection);
+  } else {
+    const item = sourceSection.items[source.itemIndex];
+    if (!item) { alert("The selected item no longer exists."); return; }
+    if (!targetSection) {
+      targetSection = menuData.find(section => section !== sourceSection &&
+        section.pageId === destination.pageId &&
+        (pageColumnCount(destination.pageId) === 1 ? 0 : section.column) === column &&
+        section.name === sourceSection.name);
+    }
+    if (!targetSection) {
+      targetSection = { name: sourceSection.name, pageId: destination.pageId, column, items: [] };
+      menuData.push(targetSection);
+    }
+    let targetIndex = destination.itemIndex === undefined ? targetSection.items.length : destination.itemIndex;
+    if (sourceSection === targetSection && source.itemIndex < targetIndex) targetIndex--;
+    sourceSection.items.splice(source.itemIndex, 1);
+    targetSection.items.splice(targetIndex, 0, item);
+  }
+  saveMenu();
+  render();
+}
+
+function openMoveModal(sectionIndex, itemIndex) {
+  if (!requireManager()) return;
+  movingContext = { sectionIndex, itemIndex };
+  const section = menuData[sectionIndex];
+  document.getElementById("moveTitle").textContent = `Move ${itemIndex === undefined ? section.name : section.items[itemIndex].name}`;
+  fillPageSelect("movePage", section.pageId);
+  document.getElementById("moveColumn").value = String(section.column);
+  updateMoveSections();
+  document.getElementById("moveSectionLabel").hidden = itemIndex === undefined;
+  document.getElementById("moveModal").classList.remove("hidden");
+}
+
+function updateMoveSections() {
+  const pageId = selectedPageId("movePage");
+  const singleColumn = pageColumnCount(pageId) === 1;
+  document.getElementById("moveColumn").disabled = singleColumn;
+  if (singleColumn) document.getElementById("moveColumn").value = "0";
+  const column = singleColumn ? 0 : Number(document.getElementById("moveColumn").value);
+  document.getElementById("moveSection").innerHTML = '<option value="">Keep section name (append)</option>' +
+    menuData.flatMap((section, index) => section.pageId === pageId &&
+      (singleColumn ? 0 : section.column) === column ?
+      [`<option value="${index}">${escapeHtml(section.name)}</option>`] : []).join("");
+}
+
+function renderPageBoard() {
+  const board = document.getElementById("pageBoard");
+  board.innerHTML = "";
+  buildPages().forEach((page, pageIndex) => {
+    const card = document.createElement("section");
+    card.className = "board-page";
+    card.innerHTML = `<div class="board-page-head"><strong>Page ${pageIndex + 1}</strong>
+      <input aria-label="Page ${pageIndex + 1} title" class="page-title-input">
+      <button onclick="reorderPage(${pageIndex}, -1)" ${pageIndex === 0 ? "disabled" : ""} title="Move page earlier">Earlier</button>
+      <button onclick="reorderPage(${pageIndex}, 1)" ${pageIndex === menuPages.length - 1 ? "disabled" : ""} title="Move page later">Later</button>
+      <button onclick="deletePage(${pageIndex})">Delete empty page</button></div><div class="board-columns"></div>`;
+    const title = card.querySelector("input");
+    title.value = page.title;
+    title.addEventListener("change", () => renamePage(pageIndex, title.value));
+    page.cols.forEach((chunks, column) => {
+      const col = document.createElement("div");
+      col.className = "board-column";
+      col.innerHTML = `<p class="drop-hint">${pageColumnCount(page.id) === 1 ? "Single column" : column === 0 ? "Left column" : "Right column"} - drop here</p>`;
+      wireDropTarget(col, { pageId: page.id, column });
+      chunks.forEach(chunk => {
+        const section = document.createElement("div");
+        section.className = "board-section";
+        const index = chunk.sectionIndex;
+        section.innerHTML = `<div class="board-section-head"><strong>${escapeHtml(chunk.name)}</strong>
+          <button onclick="openMoveModal(${index})">Move section</button>
+          <button onclick="openSectionModal(${index})">Edit</button></div>`;
+        wireDragSource(section.querySelector(".board-section-head"), { sectionIndex: index });
+        wireDropTarget(section, { pageId: page.id, column, sectionIndex: index });
+        chunk.items.forEach(ref => {
+          const item = document.createElement("div");
+          item.className = "board-item";
+          item.innerHTML = `<span>${escapeHtml(ref.item.name)}${ref.item.available === false ? " (unavailable)" : ""}</span><button onclick="openMoveModal(${index}, ${ref.itemIdx})">Move</button>`;
+          wireDragSource(item, { sectionIndex: index, itemIndex: ref.itemIdx });
+          wireDropTarget(item, { pageId: page.id, column, sectionIndex: index, itemIndex: ref.itemIdx });
+          section.appendChild(item);
+        });
+        if (!chunk.items.length) section.insertAdjacentHTML("beforeend", '<p class="help">Empty section - add an item or drop one here.</p>');
+        col.appendChild(section);
+      });
+      card.querySelector(".board-columns").appendChild(col);
+    });
+    board.appendChild(card);
+  });
+}
+
+function addPortionRow(portion = { label: "", price: "" }) {
+  const row = document.createElement("div");
+  row.className = "portion-row";
+  row.innerHTML = '<input aria-label="Portion name" placeholder="Size name"><input aria-label="Portion price" inputmode="decimal" placeholder="12.99"><button type="button" aria-label="Remove portion">Remove</button>';
+  row.children[0].value = portion.label;
+  row.children[1].value = portion.price;
+  row.querySelector("button").addEventListener("click", () => row.remove());
+  document.getElementById("portionRows").appendChild(row);
+}
+
+function updatePortionEditor() {
+  const enabled = document.getElementById("usePortions").checked;
+  document.getElementById("portionEditor").hidden = !enabled;
+  document.getElementById("basePriceLabel").hidden = enabled;
+}
+
+function money(value) {
+  const cleaned = value.trim().replace(/^\$/, "");
+  if (!/^\d+(?:\.\d{1,2})?$/.test(cleaned) || !Number.isFinite(Number(cleaned)) || Number(cleaned) > 99999) {
+    throw new Error(`Invalid price "${value}". Use a positive amount with up to two decimals.`);
+  }
+  return `$${Number(cleaned).toFixed(2)}`;
+}
+
+function readPortions() {
+  if (!document.getElementById("usePortions").checked) return [];
+  const portions = [];
+  const labels = new Set();
+  document.querySelectorAll("#portionRows .portion-row").forEach(row => {
+    const label = row.children[0].value.trim();
+    const rawPrice = row.children[1].value.trim();
+    if (!label || !rawPrice) throw new Error("Each portion needs a name and a price. Remove unused rows.");
+    if (labels.has(label.toLowerCase())) throw new Error("Portion names must be unique for this item.");
+    labels.add(label.toLowerCase());
+    portions.push({ label, price: money(rawPrice) });
+  });
+  if (!portions.length) throw new Error("Add at least one portion, or turn off named portions.");
+  return portions;
+}
+
+function spiceFromOptions(options) {
+  const first = options.split(",")[0].trim().toLowerCase();
+  if (first === "mild") return "🌶";
+  if (first === "medium") return "🌶🌶";
+  if (first === "hot" || first === "spicy") return "🌶🌶🌶";
+  return "";
+}
+
+function parseBiryaniSheet(text) {
+  const lines = text.trim().split(/\r?\n/);
+  const names = new Set();
+  return lines.map((line, index) => {
+    const cells = line.split("\t").map(cell => cell.trim());
+    const [name, ...values] = cells;
+    if (cells.length !== 7 || !name) throw new Error(`Row ${index + 1}: use the seven tab-separated columns described above.`);
+    if (names.has(name.toLowerCase())) throw new Error(`Row ${index + 1}: duplicate item name.`);
+    names.add(name.toLowerCase());
+    const portions = PORTION_LABELS.flatMap((label, i) => values[i] ? [{ label, price: money(values[i]) }] : []);
+    if (!portions.length) throw new Error(`Row ${index + 1}: enter at least one portion price.`);
+    if (!["veg", "nonveg", "none"].includes(cells[6])) throw new Error(`Row ${index + 1}: diet must be veg, nonveg, or none (unspecified).`);
+    return { name, price: portions.map(portion => portion.price).join(" | "), portions,
+      spice: spiceFromOptions(cells[5]), spiceOptions: cells[5], veg: selectValueToVeg(cells[6]), desc: "", available: true };
+  });
+}
+
+function openBiryaniImport() {
+  if (!requireManager()) return;
+  const select = document.getElementById("biryaniSection");
+  select.innerHTML = document.getElementById("itemSection").innerHTML;
+  const index = menuData.findIndex(section => section.name.toLowerCase() === "biryani");
+  if (!menuData.length) { alert("Create a section before importing."); return; }
+  if (index >= 0) select.value = String(index);
+  document.getElementById("biryaniSheet").value = BIRYANI_SHEET;
+  document.getElementById("biryaniReview").textContent = "";
+  document.getElementById("biryaniModal").classList.remove("hidden");
+}
+
+function reviewBiryaniImport() {
+  const items = parseBiryaniSheet(document.getElementById("biryaniSheet").value);
+  const review = document.getElementById("biryaniReview");
+  review.innerHTML = `<strong>${items.length} items ready</strong><ul>${items.map(item =>
+    `<li>${escapeHtml(item.name)}: ${item.portions.map(portion => `${escapeHtml(portion.label)} ${escapeHtml(portion.price)}`).join(" / ")}</li>`).join("")}</ul>`;
+  return items;
+}
+
+function importBiryani() {
+  if (!requireManager()) return;
+  let items;
+  try { items = reviewBiryaniImport(); } catch (error) { alert(error.message); return; }
+  const section = menuData[Number(document.getElementById("biryaniSection").value)];
+  if (!section) { alert("Choose a destination section."); return; }
+  const matchingSections = menuData.filter(entry => entry.name === section.name);
+  const oldCount = matchingSections.reduce((count, entry) => count + entry.items.length, 0);
+  if (!confirm(`Replace all ${oldCount} items in "${section.name}", including its continuations, with ${items.length} reviewed items? Undo and backups can restore the old list.`)) return;
+  section.items = items;
+  menuData = menuData.filter(entry => entry === section || entry.name !== section.name);
+  saveMenu();
+  render();
+  document.getElementById("biryaniModal").classList.add("hidden");
+}
+
+function downloadBackup(previous = false) {
+  let content = documentSnapshot();
+  if (previous) {
+    try {
+      const saved = localStorage.getItem("aahaaMenuBeforeBiryaniUpdate");
+      if (!saved) { alert("No pre-update copy exists in this browser."); return; }
+      const data = JSON.parse(saved);
+      const converted = Array.isArray(data) ? convertLegacyDocument(data) : { ...data, biryaniRevision: 1 };
+      validateDocument(converted);
+      content = JSON.stringify(converted);
+    } catch (error) {
+      console.error("Could not read pre-update backup", error);
+      alert("The pre-update copy could not be read. The current menu has not been changed.");
+      return;
+    }
+  }
+  const blob = new Blob([content], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `Aahaa-Menu-${previous ? "Pre-Update-" : ""}Backup-${new Date().toISOString().slice(0, 10)}.json`;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function restoreBackup(event) {
+  const file = event.target.files[0];
+  if (!file || !requireManager()) return;
+  try {
+    const data = JSON.parse(await file.text());
+    validateDocument(data);
+    if (!confirm("Replace this browser's menu and design with this backup? You can Undo afterwards.")) return;
+    restoreSnapshot(JSON.stringify(data));
+    saveMenu();
+    saveDesign();
+  } catch (error) {
+    console.error("Backup restore failed", error);
+    alert(`Could not restore backup: ${error.message}`);
+  } finally {
+    event.target.value = "";
+  }
+}
+
+function togglePreview() {
+  customerPreview = !customerPreview;
+  document.body.classList.toggle("customer-preview", customerPreview);
+  document.getElementById("previewBtn").textContent = customerPreview ? "Back to Manager" : "Customer Preview";
+  render();
+}
+
+function overflowingColumns() {
+  document.body.classList.add("measure-layout");
+  const overflowing = [];
+  document.querySelectorAll("#pagesContainer .page").forEach((page, pageIndex) => {
+    const style = getComputedStyle(page);
+    const outerHeight = element => {
+      const css = getComputedStyle(element);
+      if (css.display === "none") return 0;
+      return element.getBoundingClientRect().height + parseFloat(css.marginTop) + parseFloat(css.marginBottom);
+    };
+    const available = 297 * 96 / 25.4 - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom) -
+      outerHeight(page.querySelector(".page-header")) - outerHeight(page.querySelector(".page-footer"));
+    page.querySelectorAll(".page-col").forEach((col, column) => {
+      const needed = Array.from(col.children).reduce((height, section) => height + outerHeight(section), 0);
+      if (needed > available + 1) overflowing.push({ pageIndex, column, excess: needed - available });
+    });
+  });
+  document.body.classList.remove("measure-layout");
+  return overflowing;
+}
+
+function checkPageOverflow() {
+  const overflowing = overflowingColumns();
+  const warning = document.getElementById("layoutWarning");
+  warning.hidden = !overflowing.length;
+  warning.innerHTML = overflowing.length ?
+    `Content exceeds A4 on page(s) ${[...new Set(overflowing.map(entry => entry.pageIndex + 1))].join(", ")}. Move items or <button onclick="fitPages()" class="btn btn-light">Auto-fit pages</button>. Export is blocked until it fits.` : "";
+  return overflowing.length;
+}
+
+function fitPages() {
+  if (!requireManager()) return;
+  const columns = designData.columnCount === 1 ? 1 : 2;
+  const itemCount = menuData.reduce((count, section) => count + section.items.length, 0);
+  const limit = Math.max(10, itemCount * (itemCount + menuPages.length) * columns);
+  let steps = 0;
+  while (steps++ < limit) {
+    const overflow = overflowingColumns()[0];
+    if (!overflow) break;
+    const page = menuPages[overflow.pageIndex];
+    if (page.layout === "biryani") {
+      alert("The dedicated biryani page is too tall. Reduce the font size or shorten descriptions to keep all biryanis together.");
+      break;
+    }
+    const sections = menuData.filter(section => section.pageId === page.id &&
+      (columns === 1 ? 0 : section.column) === overflow.column && section.items.some(item => item.available !== false));
+    const section = sections[sections.length - 1];
+    if (!section) break;
+    const visibleItems = sections.reduce((count, entry) => count + entry.items.filter(item => item.available !== false).length, 0);
+    if (visibleItems === 1) {
+      alert("One item is taller than a page. Shorten its text, reduce the font size, or use one column.");
+      break;
+    }
+    document.body.classList.add("measure-layout");
+    const sectionElement = document.querySelector(`#page-${overflow.pageIndex} .section[data-section-index="${menuData.indexOf(section)}"]`);
+    const rows = Array.from(sectionElement.querySelectorAll(".item"));
+    let removedHeight = 0;
+    let cutIndex = section.items.length;
+    for (let index = section.items.length - 1; index >= 0; index--) {
+      if (section.items[index].available !== false) removedHeight += rows[index].getBoundingClientRect().height;
+      cutIndex = index;
+      if (removedHeight >= overflow.excess) break;
+    }
+    const firstVisibleIndex = section.items.findIndex(item => item.available !== false);
+    const moveWholeSection = sections.length > 1 && cutIndex <= firstVisibleIndex;
+    if (!moveWholeSection && cutIndex <= firstVisibleIndex) {
+      cutIndex = section.items.findIndex((item, index) => index > firstVisibleIndex && item.available !== false);
+    }
+    document.body.classList.remove("measure-layout");
+    const next = nextColumnPosition({ page: overflow.pageIndex, col: overflow.column }, columns);
+    if (menuPages[next.page]?.layout === "biryani") {
+      menuPages.splice(next.page, 0, { id: newPageId(), title: "Menu continued" });
+    }
+    if (!menuPages[next.page]) menuPages.push({ id: newPageId(), title: `Page ${menuPages.length + 1}` });
+    const destinationId = menuPages[next.page].id;
+    const firstSection = menuData.find(entry => entry.pageId === destinationId && (columns === 1 ? 0 : entry.column) === next.col);
+    let destination = firstSection?.name === section.name ? firstSection : null;
+    if (moveWholeSection && !destination) {
+      menuData.splice(menuData.indexOf(section), 1);
+      section.pageId = destinationId;
+      section.column = next.col;
+      menuData.splice(firstSection ? menuData.indexOf(firstSection) : menuData.length, 0, section);
+      render();
+      continue;
+    }
+    if (!destination) {
+      destination = { name: section.name, pageId: destinationId, column: next.col, items: [] };
+      menuData.splice(firstSection ? menuData.indexOf(firstSection) : menuData.length, 0, destination);
+    }
+    destination.items.unshift(...section.items.splice(moveWholeSection ? 0 : cutIndex));
+    if (!section.items.length) menuData.splice(menuData.indexOf(section), 1);
+    render();
+  }
+  saveMenu();
+  render();
+  if (checkPageOverflow()) alert("Some content still exceeds A4. Adjust the highlighted pages before exporting.");
 }
 
 // ---- PDF export ----
@@ -896,10 +1675,11 @@ async function waitForCaptureReadiness() {
 }
 
 async function downloadPDF() {
-  const pages = Array.from(document.querySelectorAll("#pagesContainer .page"));
-  if (pages.length === 0) return;
-
+  await waitForCaptureReadiness();
+  if (checkPageOverflow()) { alert("Some content exceeds A4. Return to Manager and use Auto-fit pages before exporting."); return; }
   document.body.classList.add("pdf-export");
+  render();
+  const pages = Array.from(document.querySelectorAll("#pagesContainer .page"));
   
   const pageWidth = 210;
   const pageHeight = 297;
@@ -908,7 +1688,7 @@ async function downloadPDF() {
     scale: 3,
     useCORS: true,
     backgroundColor: "#fffaf3",
-    foreignObjectRendering: true
+    foreignObjectRendering: false
   };
 
   try {
@@ -928,7 +1708,10 @@ async function downloadPDF() {
 
     for (let i = 0; i < pages.length; i++) {
       const pageEl = pages[i];
-      const canvas = await html2pdf().set({ html2canvas: canvasOptions }).from(pageEl).toCanvas().get("canvas");
+      const canvas = await html2pdf().set({
+        html2canvas: canvasOptions,
+        pagebreak: { mode: [] }
+      }).from(pageEl).toCanvas().get("canvas");
 
       if (i > 0) {
         pdf.addPage("a4", "portrait");
@@ -949,18 +1732,79 @@ async function downloadPDF() {
     }
 
     pdf.save(filename);
+  } catch (error) {
+    console.error("PDF export failed", error);
+    alert("PDF export failed. Your menu is unchanged. Try Print / Save as PDF instead.");
   } finally {
     document.body.classList.remove("pdf-export");
+    render();
   }
 }
 
 function printMenu() {
+  if (checkPageOverflow()) { alert("Some content exceeds A4. Use Auto-fit pages before printing."); return; }
   window.print();
 }
 
 // ---- Wire up events ----
 document.getElementById("addItemBtn").addEventListener("click", () => openItemModal());
-document.getElementById("addSectionBtn").addEventListener("click", openSectionModal);
+document.getElementById("addSectionBtn").addEventListener("click", () => openSectionModal());
+document.getElementById("addPageBtn").addEventListener("click", addPage);
+document.getElementById("organizerAddPageBtn").addEventListener("click", addPage);
+document.getElementById("organizeBtn").addEventListener("click", () => {
+  if (!requireManager()) return;
+  renderPageBoard();
+  document.getElementById("organizeModal").classList.remove("hidden");
+});
+document.getElementById("organizeCloseBtn").addEventListener("click", () => document.getElementById("organizeModal").classList.add("hidden"));
+document.getElementById("previewBtn").addEventListener("click", togglePreview);
+document.getElementById("undoBtn").addEventListener("click", () => travelHistory());
+document.getElementById("redoBtn").addEventListener("click", () => travelHistory(true));
+document.getElementById("usePortions").addEventListener("change", updatePortionEditor);
+document.getElementById("addPortionBtn").addEventListener("click", () => addPortionRow());
+document.getElementById("movePage").addEventListener("change", updateMoveSections);
+document.getElementById("sectionPage").addEventListener("change", () => {
+  const singleColumn = pageColumnCount(selectedPageId("sectionPage")) === 1;
+  document.getElementById("sectionColumn").disabled = singleColumn;
+  if (singleColumn) document.getElementById("sectionColumn").value = "0";
+});
+document.getElementById("moveColumn").addEventListener("change", updateMoveSections);
+document.getElementById("moveCancelBtn").addEventListener("click", () => document.getElementById("moveModal").classList.add("hidden"));
+document.getElementById("moveSaveBtn").addEventListener("click", () => {
+  const section = document.getElementById("moveSection").value;
+  moveContent(movingContext, {
+    pageId: selectedPageId("movePage"),
+    column: Number(document.getElementById("moveColumn").value),
+    sectionIndex: movingContext.itemIndex !== undefined && section !== "" ? Number(section) : undefined
+  });
+  document.getElementById("moveModal").classList.add("hidden");
+});
+document.getElementById("biryaniBtn").addEventListener("click", openBiryaniImport);
+document.getElementById("biryaniCancelBtn").addEventListener("click", () => document.getElementById("biryaniModal").classList.add("hidden"));
+document.getElementById("biryaniReviewBtn").addEventListener("click", () => {
+  try { reviewBiryaniImport(); } catch (error) { alert(error.message); }
+});
+document.getElementById("biryaniSaveBtn").addEventListener("click", importBiryani);
+document.getElementById("backupBtn").addEventListener("click", () => downloadBackup());
+document.getElementById("previousBackupBtn").addEventListener("click", () => downloadBackup(true));
+document.getElementById("restoreBtn").addEventListener("click", () => document.getElementById("restoreFile").click());
+document.getElementById("restoreFile").addEventListener("change", restoreBackup);
+window.addEventListener("beforeprint", () => { document.body.classList.add("printing"); render(); });
+window.addEventListener("afterprint", () => { document.body.classList.remove("printing"); render(); });
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape") {
+    document.querySelectorAll(".modal").forEach(modal => modal.classList.add("hidden"));
+    const more = document.getElementById("moreOptions");
+    if (more.open) {
+      more.open = false;
+      more.querySelector("summary").focus();
+    }
+  }
+});
+document.addEventListener("click", event => {
+  const more = document.getElementById("moreOptions");
+  if (!more.contains(event.target) || event.target.closest(".more-options-panel button")) more.open = false;
+});
 document.getElementById("resetBtn").addEventListener("click", resetMenu);
 document.getElementById("downloadBtn").addEventListener("click", downloadPDF);
 document.getElementById("printBtn").addEventListener("click", printMenu);
@@ -987,5 +1831,32 @@ document.getElementById("themePreset").addEventListener("change", (e) => applyTh
 document.getElementById("prevPageBtn").addEventListener("click", () => goToPage(currentPageIndex - 1));
 document.getElementById("nextPageBtn").addEventListener("click", () => goToPage(currentPageIndex + 1));
 
+if (needsBiryaniUpdate) {
+  const biryaniSections = menuData.filter(section => section.name.toLowerCase() === "biryani");
+  if (biryaniSections.length) {
+    try {
+      localStorage.setItem("aahaaMenuBeforeBiryaniUpdate", JSON.stringify(storedMenu));
+    } catch (error) {
+      console.error("Could not preserve pre-update menu", error);
+      alert("The pre-update menu could not be backed up in this browser. Download a backup before making further changes.");
+    }
+    biryaniSections[0].items = parseBiryaniSheet(BIRYANI_SHEET);
+    menuData = menuData.filter(section => section === biryaniSections[0] || !biryaniSections.includes(section));
+  }
+}
+initializePages();
+const needsBiryaniLayout = !menuReadFailed && biryaniLayoutRevision !== 1;
+if (needsBiryaniLayout) arrangeBiryaniPage();
+lastSavedSnapshot = documentSnapshot();
 applyDesign();
 render();
+saveMenu();
+if (needsBiryaniUpdate || needsBiryaniLayout) {
+  waitForCaptureReadiness().then(() => {
+    fitPages();
+  }).catch(error => {
+    console.error("Could not fit the updated biryani menu", error);
+    alert("The biryani list is updated. Check page sizes and use Auto-fit pages before exporting.");
+  });
+}
+if (document.fonts?.ready) document.fonts.ready.then(checkPageOverflow);

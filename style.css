@@ -1,4 +1,5 @@
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 
 :root {
   --accent: #d84727;
@@ -318,6 +319,7 @@ body {
   font-weight: var(--item-name-weight);
 }
 .item .name .spice { white-space: nowrap; color: #c81d11; filter: saturate(1.4); }
+.item-markers { display: inline-block; white-space: nowrap; }
 .item .name .veg-icon,
 .item .name .nonveg-icon { margin-left: 2px; }
 .item .price {
@@ -485,3 +487,164 @@ body.pdf-export .page {
 .section-flourish.fl-star span { font-size: 12px; }
 /* None: hide divider completely */
 .section-flourish.fl-none { display: none; }
+
+/* Manager controls stay outside the customer-facing document. */
+.toolbar { position: relative; gap: 20px; }
+.toolbar-right { justify-content: flex-end; gap: 6px; }
+.more-options { position: relative; }
+.more-options > summary { list-style: none; user-select: none; }
+.more-options > summary::-webkit-details-marker { display: none; }
+.more-options > summary::after { content: " +"; }
+.more-options[open] > summary::after { content: " -"; }
+.more-options-panel {
+  position: absolute; right: 0; top: calc(100% + 10px); z-index: 60;
+  width: min(290px, calc(100vw - 24px)); padding: 16px;
+  display: flex; flex-direction: column; gap: 8px; background: #fffaf3;
+  border: 1px solid #d8c6a8; border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0,0,0,.2); font: 12px 'Poppins', sans-serif; color: #5a3a24;
+  max-height: 75vh; overflow-y: auto;
+}
+.more-options-note { margin: 0 0 4px; line-height: 1.6; color: #6b6358; }
+.history-actions { display: flex; gap: 8px; }
+.history-actions > button { flex: 1; }
+.more-options-panel > .btn { text-align: left; }
+.more-options > summary:focus-visible { outline: 2px solid #f5a623; outline-offset: 3px; }
+#saveStatus { font-size: 11px; }
+.btn-light { background: #f2e6d4; color: #5a3a24; border: 1px solid #d8c6a8; }
+.btn-light:hover { background: #e6d3b9; }
+.btn:disabled, button:disabled { opacity: .4; cursor: not-allowed; }
+.page-nav { top: 0; flex-wrap: wrap; gap: 10px; }
+.page-nav .btn-ghost { color: #5a3a24; border-color: #bca889; }
+.page-nav .btn-ghost:hover { background: #e6d3b9; }
+.layout-warning {
+  padding: 12px 20px; background: #fff1ca; color: #713e00;
+  font: 13px 'Poppins', sans-serif; text-align: center;
+}
+#pagesContainer { display: flex; flex-direction: column; align-items: center; gap: 28px; width: 100%; }
+.page { flex-shrink: 0; scroll-margin-top: 65px; }
+.page-tools { font: 12px 'Poppins', sans-serif; color: #7a1f0f; margin-bottom: 10px; }
+.page-col { min-height: 100px; }
+.section-head { flex-wrap: wrap; }
+.section-controls { display: flex; gap: 5px; }
+.section-controls button, .board-page button {
+  border: 1px solid #d8c6a8; border-radius: 4px; background: #fffaf3; color: #713e24;
+  padding: 4px 7px; cursor: pointer; font: 11px 'Poppins', sans-serif;
+}
+.item-actions { flex-wrap: wrap; max-width: 62px; }
+.item-actions button { padding: 1px; font-size: 11px; }
+[draggable="true"] { cursor: grab; }
+.dragging { opacity: .45; }
+.drop-target { outline: 2px dashed var(--accent); outline-offset: -2px; background: #fff0d9; }
+.portion-prices {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px;
+  margin: 6px 0 3px; font: 11px var(--heading-font);
+}
+.portion-prices > div { background: #f2e6d4; border-radius: 4px; padding: 5px 7px; display: flex; justify-content: space-between; gap: 5px; }
+.portion-prices strong { color: var(--accent); white-space: nowrap; font-weight: var(--price-weight); }
+.featured-biryani .section h2 {
+  display: block; background: none; color: var(--accent); font-size: 30px;
+  letter-spacing: 3px; text-transform: uppercase; padding: 4px 0;
+}
+.featured-biryani .section-head { justify-content: center; }
+.featured-biryani .section-flourish { justify-content: center; margin-bottom: 16px; }
+.featured-price-header, .featured-biryani .item {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 12px;
+  align-items: center;
+}
+.featured-price-header {
+  color: #713e24; background: #f2e6d4; padding: 10px 8px; border-radius: 6px;
+  font: 11px var(--heading-font); font-weight: 600; margin-bottom: 4px;
+}
+.featured-price-header > div, .featured-biryani .portion-prices {
+  display: grid; grid-template-columns: repeat(var(--portion-count), minmax(0, 1fr)); gap: 4px;
+  text-align: center;
+}
+.featured-biryani .item { padding: 10px 8px; min-height: 48px; }
+.featured-biryani .item:nth-child(even) { background: #fcf4e8; }
+.featured-biryani .item .name { font-size: var(--item-font-size); }
+.featured-biryani .item .spice { font-size: 12px; }
+.featured-biryani .item-top { flex-wrap: wrap; gap: 3px; }
+.featured-biryani .item-actions { max-width: none; width: 100%; }
+.featured-biryani .portion-prices { margin: 0; font-size: 13px; }
+.featured-biryani .portion-prices > div { background: none; padding: 0; display: block; }
+.featured-biryani .portion-prices > div > span {
+  position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden;
+  clip: rect(0, 0, 0, 0); white-space: nowrap;
+}
+.featured-biryani .item-desc, .featured-biryani .availability-label { grid-column: 1 / -1; }
+.availability-label { color: #9c2828; font: 10px 'Poppins', sans-serif; }
+.unavailable { opacity: .6; }
+.modal-box { width: min(560px, 94vw); }
+.modal-box-wide { width: min(560px, 94vw); }
+.modal-box .btn-ghost { color: #5a3a24; border-color: #d8c6a8; }
+.modal-box .btn-ghost:hover { background: #f2e6d4; }
+.modal-box .check-label { flex-direction: row; align-items: center; gap: 8px; }
+.help { font: 12px/1.6 'Poppins', sans-serif; color: #6b6358; margin: 0; }
+.modal-box fieldset { border: 1px solid #d8c6a8; border-radius: 6px; padding: 12px; }
+.modal-box legend { font-size: 12px; color: #713e24; }
+.portion-row { display: flex; gap: 6px; margin: 7px 0; }
+.portion-row input { width: 0; flex: 1; min-width: 0; }
+.portion-row button { border: 0; background: #f8e9e4; color: #922b19; cursor: pointer; }
+.organizer-box { width: min(1150px, 96vw); }
+.board-page { border: 1px solid #d8c6a8; border-radius: 8px; padding: 14px; margin-bottom: 16px; }
+.board-page-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.page-title-input { flex: 1; min-width: 100px; }
+.board-columns { display: flex; gap: 12px; }
+.board-column { flex: 1; min-width: 0; min-height: 120px; background: #f9f4eb; padding: 10px; border: 1px dashed #c9a98a; border-radius: 6px; }
+.drop-hint { font-size: 11px; color: #7a1f0f; margin-top: 0; }
+.board-section { border: 1px solid #d8c6a8; margin-bottom: 10px; background: #fff; padding: 8px; border-radius: 4px; }
+.board-section-head { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; margin-bottom: 6px; font-size: 12px; }
+.board-section-head strong { flex: 1; }
+.board-item { display: flex; justify-content: space-between; align-items: center; gap: 6px; border-top: 1px solid #eee; padding: 6px 0; font-size: 11px; }
+.modal-box textarea { width: 100%; resize: vertical; font: 12px/1.7 monospace; padding: 10px; border: 1px solid #d8c6a8; white-space: pre; overflow-x: auto; }
+body.customer-preview .manager-only,
+body.customer-preview .item-actions,
+body.customer-preview .section-del,
+body.pdf-export .manager-only,
+body.pdf-export .modal,
+body.pdf-export .unavailable,
+body.measure-layout .manager-only,
+body.measure-layout .item-actions,
+body.measure-layout .unavailable,
+body.measure-layout .empty-for-customers { display: none !important; }
+body.customer-preview [draggable] { cursor: default; }
+body.pdf-export #pagesContainer { gap: 0; }
+body.pdf-export #pagesContainer,
+body.measure-layout #pagesContainer { width: 210mm; }
+body.pdf-export .page,
+body.measure-layout .page { width: 210mm; max-width: 210mm; padding: 14mm; }
+body.pdf-export .page-logo,
+body.measure-layout .page-logo { height: 88px; }
+body.pdf-export .page-body,
+body.measure-layout .page-body { gap: 20px; }
+body.pdf-export .legend-row,
+body.measure-layout .legend-row { gap: 14px; flex-wrap: nowrap; }
+@media (max-width: 650px) {
+  .toolbar { flex-direction: column; padding: 12px; gap: 12px; }
+  .more-options { position: static; }
+  .more-options-panel { right: 12px; top: calc(100% + 6px); }
+  .toolbar-right { justify-content: center; }
+  .btn { padding: 8px 10px; font-size: 11px; }
+  .board-columns { flex-direction: column; }
+  .page { padding: 10mm 8mm; }
+  .page-body { gap: 10px; }
+  .page-logo { height: 65px; }
+  .legend-row { gap: 5px; flex-wrap: wrap; }
+}
+@media print {
+  .manager-only, .modal, .unavailable { display: none !important; }
+  #pagesContainer { display: block; gap: 0; }
+  .page-col { min-height: 0; }
+  .page-logo { height: 88px; }
+  .page-body { gap: 20px; }
+  .legend-row { gap: 14px; flex-wrap: nowrap; }
+}
+@media screen and (max-width: 650px) {
+  body:not(.pdf-export):not(.measure-layout) .featured-biryani .item,
+  body:not(.pdf-export):not(.measure-layout) .featured-price-header {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 6px; padding: 8px 4px;
+  }
+  body:not(.pdf-export):not(.measure-layout) .featured-biryani .item .name { font-size: 14px; }
+  body:not(.pdf-export):not(.measure-layout) .featured-biryani .portion-prices { font-size: 10px; }
+  body:not(.pdf-export):not(.measure-layout) .featured-price-header { font-size: 9px; }
+}
