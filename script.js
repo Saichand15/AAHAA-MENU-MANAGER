@@ -272,30 +272,31 @@ const DEFAULT_MENU = [
     { name: "Mix Veg Uthappam", spice: "", price: "$13.99", desc: "Soft rice pancake topped with mixed vegetables.", veg: true }
   ]},
   { page: 7, col: "R", name: "Tandoor", items: [
-    { name: "Chicken Achari Tikka", spice: "", price: "$18.99", desc: "Chicken skewers marinated with tangy pickling spices.", veg: false },
-    { name: "Chicken Haryali Tikka", spice: "", price: "$18.99", desc: "Chicken skewers in mint coriander green marinade.", veg: false },
-    { name: "Chicken Sheekh Kabab", spice: "", price: "$18.99", desc: "Minced spiced chicken skewers char grilled until golden.", veg: false },
-    { name: "Chicken Tikka Lasuni", spice: "", price: "$18.99", desc: "Chicken tikka roasted with aromatic garlic marinade.", veg: false }
+    { name: "Chicken Achari Tikka", spice: "🌶🌶", price: "$18.99", prepTime: "20-30", desc: "Chicken skewers marinated with tangy pickling spices.", veg: false },
+    { name: "Chicken Haryali Tikka", spice: "🌶🌶", price: "$18.99", prepTime: "20-30", desc: "Chicken skewers in mint coriander green marinade.", veg: false },
+    { name: "Chicken Sheek Kabab", spice: "🌶🌶", price: "$18.99", prepTime: "20-30", desc: "Minced spiced chicken skewers char grilled until golden.", veg: false },
+    { name: "Chicken Tikka Lasuni", spice: "🌶🌶", price: "$18.99", prepTime: "20-30", desc: "Chicken tikka roasted with aromatic garlic marinade.", veg: false }
   ]},
 
   // ===== PAGE 8 — Tandoor + Naan =====
   { page: 8, col: "L", name: "Tandoor", items: [
-    { name: "Fish Tikka (Mahi Mahi)", spice: "", price: "$20.99", desc: "Mahi mahi steaks roasted with aromatic ajwain.", veg: false },
-    { name: "Lamb Sheekh Kabab", spice: "", price: "$18.99", desc: "Minced spiced lamb skewers char grilled until succulent.", veg: false },
-    { name: "Malai Chicken Tikka", spice: "", price: "$18.99", desc: "Chicken marinated in a creamy malai marinade.", veg: false },
-    { name: "Tandoori Chicken (4 pcs / 8 pcs)", spice: "", price: "$18.99 | $24.99", desc: "Tandoor roasted chicken with aromatic Indian spices.", veg: false },
-    { name: "Tandoori Shrimp", spice: "", price: "$20.99", desc: "King prawns marinated and cooked in a clay oven.", veg: false },
-    { name: "Tandoori Vegetables", spice: "", price: "$15.99", desc: "Marinated vegetables charred in a traditional clay oven.", veg: true },
-    { name: "Tandoori Pomfret", spice: "", price: "$25.99", desc: "Spiced pomfret grilled to achieve a smoky finish.", veg: false },
-    { name: "Paneer Tikka", spice: "", price: "$16.99", desc: "Spiced paneer grilled to achieve a golden finish.", veg: true },
-    { name: "Tandoor Mix Grill", spice: "", price: "$29.99", desc: "Tandoor grilled meats and paneer served together.", veg: "both" },
-    { name: "Hariyali Paneer Tikka", spice: "", price: "$18.99", desc: "Mint marinated paneer grilled until lightly charred.", veg: true },
+    { name: "Fish Tikka (Mahi Mahi)", spice: "🌶🌶", price: "$20.99", prepTime: "20-30", desc: "Mahi mahi steaks roasted with aromatic ajwain.", veg: false },
+    { name: "Lamb Seekh Kabab", spice: "🌶🌶", price: "$18.99", prepTime: "20-30", desc: "Minced spiced lamb skewers char grilled until succulent.", veg: false },
+    { name: "Malai Chicken Tikka", spice: "🌶🌶", price: "$18.99", prepTime: "20-30", desc: "Chicken marinated in a creamy malai marinade.", veg: false },
+    { name: "Tandoori Chicken 4 pc", spice: "🌶🌶", price: "$18.99", prepTime: "20-30", desc: "Tandoor roasted chicken with aromatic Indian spices.", veg: false },
+    { name: "Tandoori Chicken 8 pc", spice: "🌶🌶", price: "$24.99", prepTime: "20-30", desc: "Tandoor roasted chicken with aromatic Indian spices.", veg: false },
+    { name: "Tandoori Shrimp", spice: "🌶🌶", price: "$20.99", prepTime: "20-30", desc: "King prawns marinated and cooked in a clay oven.", veg: false },
+    { name: "Tandoori Vegetables", spice: "🌶🌶", price: "$15.99", prepTime: "20-30", desc: "Marinated vegetables charred in a traditional clay oven.", veg: true },
+    { name: "Tandoori Pomfret", spice: "🌶🌶", price: "$25.99", prepTime: "30-40", desc: "Spiced pomfret grilled to achieve a smoky finish.", veg: false },
+    { name: "Paneer Tikka", spice: "🌶🌶", price: "$16.99", prepTime: "20-30", desc: "Spiced paneer grilled to achieve a golden finish.", veg: true },
+    { name: "Tandoor Mix Grill", spice: "🌶🌶", price: "$29.99", prepTime: "20-30", desc: "Tandoor grilled meats and paneer served together.", veg: "both" },
+    { name: "Hariyali Paneer Tikka", spice: "🌶🌶", price: "$16.99", prepTime: "20-30", desc: "Mint marinated paneer grilled until lightly charred.", veg: true }
+  ]},
+  { page: 8, col: "R", name: "Naan", items: [
     { name: "Aloo Paratha", spice: "", price: "$4.99", desc: "Golden wheat flatbread stuffed with spiced potatoes.", veg: true },
     { name: "Bread Basket", spice: "", price: "$12.99", desc: "Assorted freshly baked Indian breads for sharing.", veg: true },
     { name: "Bullet Naan", spice: "", price: "$4.99", desc: "Classic clay oven baked naan with a golden finish.", veg: true },
-    { name: "Butter Roti", spice: "", price: "$4.99", desc: "Clay oven baked whole wheat flatbread brushed with butter.", veg: true }
-  ]},
-  { page: 8, col: "R", name: "Naan", items: [
+    { name: "Butter Roti", spice: "", price: "$4.99", desc: "Clay oven baked whole wheat flatbread brushed with butter.", veg: true },
     { name: "Cauliflower Naan", spice: "", price: "$4.99", desc: "Golden naan stuffed with spiced cauliflower filling.", veg: true },
     { name: "Garlic Naan", spice: "", price: "$5.99", desc: "Golden naan topped with fragrant garlic.", veg: true },
     { name: "Lamb Keema Naan", spice: "", price: "$6.99", desc: "Naan stuffed with spiced minced lamb.", veg: false },
@@ -367,6 +368,7 @@ let menuData = normalizeMenuData(Array.isArray(storedMenu) ? storedMenu : stored
 let designData = loadDesign();
 let menuPages = Array.isArray(storedMenu.pages) ? storedMenu.pages : [];
 let biryaniLayoutRevision = storedMenu.biryaniLayoutRevision || 0;
+let tandoorRevision = storedMenu.tandoorRevision || 0;
 let editingContext = null; // { sectionIndex, itemIndex } or null for new item
 let currentPageIndex = 0;
 let totalPages = 0;
@@ -670,6 +672,48 @@ function initializePages() {
   menuPages = converted.pages;
 }
 
+function updateTandoorMenu() {
+  if (tandoorRevision === 1) return;
+  const sections = menuPages.flatMap(page => menuData
+    .filter(section => section.pageId === page.id && section.name.toLowerCase() === "tandoor")
+    .sort((left, right) => left.column - right.column));
+  if (sections.length) {
+    const breadNames = new Set(["Aloo Paratha", "Bread Basket", "Bullet Naan", "Butter Roti"]);
+    const breads = sections.flatMap(section => section.items.filter(item => breadNames.has(item.name)));
+    if (breads.length) {
+      let naan = menuData.find(section => section.name.toLowerCase() === "naan");
+      if (!naan) {
+        naan = { name: "Naan", pageId: sections.at(-1).pageId, column: sections.at(-1).column, items: [] };
+        menuData.push(naan);
+      }
+      breads.forEach(item => {
+        if (!naan.items.some(existing => existing.name === item.name)) naan.items.push(item);
+      });
+    }
+    const items = DEFAULT_MENU.filter(section => section.name === "Tandoor")
+      .flatMap(section => section.items.map(item => ({ ...item })));
+    let offset = 0;
+    sections.forEach((section, index) => {
+      const count = index === sections.length - 1 ? items.length - offset :
+        Math.min(section.items.filter(item => !breadNames.has(item.name)).length, items.length - offset);
+      section.items = items.slice(offset, offset + count);
+      offset += count;
+    });
+  }
+  tandoorRevision = 1;
+}
+
+function prepTimeMarker(item) {
+  return item.prepTime === "30-40" ? "**" : item.prepTime === "20-30" ? "*" : "";
+}
+
+function preparationNotesHtml(items) {
+  const times = new Set(items.map(item => item.prepTime));
+  return ["20-30", "30-40"].filter(time => times.has(time)).map(time =>
+    `<p><strong>${prepTimeMarker({ prepTime: time })}</strong> Preparation time: Maximum ${time.replace("-", "–")} minutes from the time the order is placed.</p>`
+  ).join("");
+}
+
 function arrangeBiryaniPage() {
   const sections = menuPages.flatMap(page => menuData
     .filter(section => section.pageId === page.id && section.name.toLowerCase() === "biryani")
@@ -831,7 +875,7 @@ function render() {
           wireDropTarget(row, { pageId: page.id, column: colIdx, sectionIndex: chunk.sectionIndex, itemIndex: ref.itemIdx });
           row.innerHTML = `
             <div class="item-top">
-              <span class="name">${escapeHtml(item.name)}<span class="item-markers">${vegIconHtml(item.veg)}${item.spice ? `&nbsp;<span class="spice">${escapeHtml(item.spice)}</span>` : ""}</span></span>
+              <span class="name">${escapeHtml(item.name)}${prepTimeMarker(item) ? `<sup class="prep-marker" aria-label="Preparation time ${escapeHtml(item.prepTime)} minutes">${prepTimeMarker(item)}</sup>` : ""}<span class="item-markers">${vegIconHtml(item.veg)}${item.spice ? `&nbsp;<span class="spice">${escapeHtml(item.spice)}</span>` : ""}</span></span>
               ${item.portions?.length ? "" : `<span class="price">${escapeHtml(item.price)}</span>`}
               <span class="item-actions">
                 <button title="Edit" onclick="openItemModal(${chunk.sectionIndex}, ${ref.itemIdx})">✎</button>
@@ -846,6 +890,14 @@ function render() {
             ${item.desc ? `<div class="item-desc">${escapeHtml(item.desc)}</div>` : ""}`;
           sectionDiv.appendChild(row);
         });
+        const notesHtml = preparationNotesHtml(chunk.items.map(ref => ref.item));
+        if (notesHtml) {
+          const notes = document.createElement("aside");
+          notes.className = "preparation-notes";
+          notes.setAttribute("aria-label", "Preparation times");
+          notes.innerHTML = notesHtml;
+          sectionDiv.appendChild(notes);
+        }
 
         colEl.appendChild(sectionDiv);
       });
@@ -971,6 +1023,7 @@ function openItemModal(sIdx, iIdx) {
   document.getElementById("portionRows").innerHTML = "";
   (item?.portions || PORTION_LABELS.map(label => ({ label, price: "" }))).forEach(addPortionRow);
   document.getElementById("itemAvailable").checked = item?.available !== false;
+  document.getElementById("itemPrepTime").value = item?.prepTime || "";
   updatePortionEditor();
   modal.classList.remove("hidden");
   nameInput.focus();
@@ -1023,6 +1076,7 @@ function saveItem() {
     ...previous, name, price: portions.length ? portions.map(portion => portion.price).join(" | ") : price,
     spice, desc, veg, portions,
     spiceOptions: "",
+    prepTime: document.getElementById("itemPrepTime").value,
     available: document.getElementById("itemAvailable").checked
   };
 
@@ -1084,6 +1138,7 @@ function resetMenu() {
   menuData = normalizeMenuData(JSON.parse(JSON.stringify(DEFAULT_MENU)));
   menuPages = [];
   initializePages();
+  updateTandoorMenu();
   arrangeBiryaniPage();
   saveMenu();
   render();
@@ -1134,7 +1189,7 @@ function newPageId() {
 }
 
 function documentSnapshot() {
-  return JSON.stringify({ version: 2, biryaniRevision: 1, biryaniLayoutRevision, sections: menuData, pages: menuPages, design: designData });
+  return JSON.stringify({ version: 2, biryaniRevision: 1, biryaniLayoutRevision, tandoorRevision, sections: menuData, pages: menuPages, design: designData });
 }
 
 function validateDocument(data) {
@@ -1156,6 +1211,7 @@ function validateDocument(data) {
           (item.desc !== undefined && typeof item.desc !== "string") ||
           (item.spice !== undefined && typeof item.spice !== "string") ||
           (item.spiceOptions !== undefined && typeof item.spiceOptions !== "string") ||
+          (item.prepTime !== undefined && !["", "20-30", "30-40"].includes(item.prepTime)) ||
           (item.available !== undefined && typeof item.available !== "boolean") ||
           (item.veg !== undefined && ![true, false, "both"].includes(item.veg))) throw new Error("Invalid item in backup.");
       if (item.portions !== undefined && (!Array.isArray(item.portions) || item.portions.some(portion =>
@@ -1193,6 +1249,7 @@ function restoreSnapshot(snapshot) {
   menuData = data.sections;
   menuPages = data.pages;
   biryaniLayoutRevision = data.biryaniLayoutRevision || 0;
+  tandoorRevision = data.tandoorRevision || 0;
   designData = { ...DEFAULT_DESIGN, ...data.design };
   applyDesign();
   render();
@@ -1515,10 +1572,12 @@ function downloadBackup(previous = false) {
   let content = documentSnapshot();
   if (previous) {
     try {
-      const saved = localStorage.getItem("aahaaMenuBeforeBiryaniUpdate");
+      const tandoorBackup = localStorage.getItem("aahaaMenuBeforeTandoorUpdate");
+      const saved = tandoorBackup || localStorage.getItem("aahaaMenuBeforeBiryaniUpdate");
       if (!saved) { alert("No pre-update copy exists in this browser."); return; }
       const data = JSON.parse(saved);
       const converted = Array.isArray(data) ? convertLegacyDocument(data) : { ...data, biryaniRevision: 1 };
+      converted.tandoorRevision = 1;
       validateDocument(converted);
       content = JSON.stringify(converted);
     } catch (error) {
@@ -1845,18 +1904,28 @@ if (needsBiryaniUpdate) {
   }
 }
 initializePages();
+const needsTandoorUpdate = !menuReadFailed && tandoorRevision !== 1;
+if (needsTandoorUpdate) {
+  try {
+    localStorage.setItem("aahaaMenuBeforeTandoorUpdate", documentSnapshot());
+    updateTandoorMenu();
+  } catch (error) {
+    console.error("Could not preserve pre-update Tandoor menu", error);
+    alert("The Tandoor update was not applied because the previous menu could not be backed up. Download a backup and free browser storage, then reload.");
+  }
+}
 const needsBiryaniLayout = !menuReadFailed && biryaniLayoutRevision !== 1;
 if (needsBiryaniLayout) arrangeBiryaniPage();
 lastSavedSnapshot = documentSnapshot();
 applyDesign();
 render();
 saveMenu();
-if (needsBiryaniUpdate || needsBiryaniLayout) {
+if (needsBiryaniUpdate || needsBiryaniLayout || needsTandoorUpdate) {
   waitForCaptureReadiness().then(() => {
     fitPages();
   }).catch(error => {
-    console.error("Could not fit the updated biryani menu", error);
-    alert("The biryani list is updated. Check page sizes and use Auto-fit pages before exporting.");
+    console.error("Could not fit the updated menu", error);
+    alert("Check page sizes and use Auto-fit pages before exporting the updated menu.");
   });
 }
 if (document.fonts?.ready) document.fonts.ready.then(checkPageOverflow);

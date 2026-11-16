@@ -6,7 +6,7 @@
 <title>Aahaa Indian Kitchen - Menu Manager</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;900&family=Merriweather:wght@300;400;700&family=Playfair+Display:wght@500;700;900&family=Montserrat:wght@400;600;700;900&family=Oswald:wght@400;600;700&family=Raleway:wght@400;600;700&family=Cinzel:wght@500;700;900&family=Lora:wght@400;600;700&family=Open+Sans:wght@400;600;700&family=Roboto:wght@400;500;700&family=Nunito:wght@400;600;700&family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@400;500;700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=5">
+<link rel="stylesheet" href="style.css?v=6">
 <script src="assets/vendor/html2pdf.bundle.min.js"></script>
 </head>
 <body>
@@ -86,6 +86,13 @@
       <button id="addPortionBtn" class="btn btn-light" type="button">+ Add portion</button>
     </fieldset>
     <label class="check-label"><input id="itemAvailable" type="checkbox" checked> Available (uncheck to hide from customers and exports)</label>
+    <label>Preparation time note
+      <select id="itemPrepTime">
+        <option value="">None</option>
+        <option value="20-30">* Maximum 20-30 minutes</option>
+        <option value="30-40">** Maximum 30-40 minutes</option>
+      </select>
+    </label>
     <label>Spice Level
       <select id="itemSpice">
         <option value="">None</option>
@@ -274,6 +281,6 @@
   </div>
 </div>
 
-<script src="script.js?v=5"></script>
+<script src="script.js?v=6"></script>
 </body>
 </html>

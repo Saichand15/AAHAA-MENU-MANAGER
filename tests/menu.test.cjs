@@ -280,3 +280,97 @@ test("spice choices map to the existing chilli legend without inventing unknown 
   assert.equal(menu.run('spiceFromOptions("Spicy")'), "🌶🌶🌶");
   assert.equal(menu.run('spiceFromOptions("Chef choice")'), "");
 });
+
+test("Tandoor defaults match all 15 sheet entries, prices and preparation markers", () => {
+  const menu = app();
+  const items = menu.json('DEFAULT_MENU.filter(section=>section.name==="Tandoor").flatMap(section=>section.items)');
+  const expected = [
+    ["Chicken Achari Tikka", "$18.99"],
+    ["Chicken Haryali Tikka", "$18.99"],
+    ["Chicken Sheek Kabab", "$18.99"],
+    ["Chicken Tikka Lasuni", "$18.99"],
+    ["Fish Tikka (Mahi Mahi)", "$20.99"],
+    ["Lamb Seekh Kabab", "$18.99"],
+    ["Malai Chicken Tikka", "$18.99"],
+    ["Tandoori Chicken 4 pc", "$18.99"],
+    ["Tandoori Chicken 8 pc", "$24.99"],
+    ["Tandoori Shrimp", "$20.99"],
+    ["Tandoori Vegetables", "$15.99"],
+    ["Tandoori Pomfret", "$25.99"],
+    ["Paneer Tikka", "$16.99"],
+    ["Tandoor Mix Grill", "$29.99"],
+    ["Hariyali Paneer Tikka", "$16.99"]
+  ];
+  assert.deepEqual(items.map(item => [item.name, item.price]), expected);
+  items.forEach(item => {
+    assert.equal(item.prepTime, item.name === "Tandoori Pomfret" ? "30-40" : "20-30");
+    assert.equal(item.spice, "🌶🌶");
+    assert.ok(!item.name.includes("*"));
+  });
+  assert.equal(menu.run('DEFAULT_MENU.find(section=>section.name==="Naan").items.some(item=>item.name==="Butter Roti")'), true);
+});
+
+test("Tandoor migration replaces old entries once, preserves breads and other menu data", () => {
+  const menu = movableMenu();
+  menu.run(`
+    menuData.push({name:"Tandoor",pageId:"p1",column:1,items:[
+      {name:"Chicken Achari Tikka",price:"$18.99"},
+      {name:"Butter Roti",price:"$6.25",desc:"Keep edited bread"}
+    ]});
+    menuData.push({name:"Tandoor",pageId:"p2",column:0,items:[
+      {name:"Tandoori Chicken (4 pcs / 8 pcs)",price:"$18.99 | $24.99"},
+      {name:"Hariyali Paneer Tikka",price:"$18.99"}
+    ]});
+    lastSavedSnapshot = documentSnapshot();
+    updateTandoorMenu();
+    saveMenu();
+  `);
+  assert.equal(menu.run('menuData.filter(s=>s.name==="Tandoor").flatMap(s=>s.items).length'), 15);
+  assert.equal(menu.run('menuData.find(s=>s.name==="Naan").items[0].price'), "$6.25");
+  assert.equal(menu.run('menuData.find(s=>s.name==="Naan").items[0].desc'), "Keep edited bread");
+  assert.deepEqual(menu.json('menuData.find(s=>s.name==="Soup").items.map(item=>item.name)'), ["A", "B", "C"]);
+  assert.equal(menu.run('menuData.find(s=>s.name==="Rice").items[0].price'), "$4.00");
+  assert.equal(menu.run('menuData.filter(s=>s.name==="Tandoor")[0].pageId'), "p1");
+  const updated = menu.json("JSON.parse(documentSnapshot())");
+  menu.run("updateTandoorMenu()");
+  assert.deepEqual(menu.json("JSON.parse(documentSnapshot())"), updated);
+  menu.run("travelHistory()");
+  assert.equal(menu.run('menuData.filter(s=>s.name==="Tandoor").flatMap(s=>s.items).length'), 4);
+  menu.run("travelHistory(true)");
+  assert.deepEqual(menu.json("JSON.parse(documentSnapshot())"), updated);
+  const reloaded = app(updated);
+  assert.equal(reloaded.run("tandoorRevision"), 1);
+  reloaded.run("validateDocument(JSON.parse(documentSnapshot()))");
+});
+
+test("preparation notes use distinct matching stars and follow moved items", () => {
+  const menu = movableMenu();
+  menu.run(`
+    menuData[0].items[0].prepTime="20-30";
+    menuData[0].items[1].prepTime="30-40";
+    moveContent({sectionIndex:0,itemIndex:1},{pageId:"p2",column:1,sectionIndex:1});
+  `);
+  const sourceNotes = menu.run("preparationNotesHtml(menuData[0].items)");
+  const destinationNotes = menu.run("preparationNotesHtml(menuData[1].items)");
+  assert.match(sourceNotes, /<strong>\*<\/strong> Preparation time: Maximum 20–30 minutes from the time the order is placed/);
+  assert.doesNotMatch(sourceNotes, /30–40/);
+  assert.match(destinationNotes, /<strong>\*\*<\/strong> Preparation time: Maximum 30–40 minutes from the time the order is placed/);
+  assert.equal(menu.run("preparationNotesHtml([{name:'No preparation time'}])"), "");
+  assert.equal(menu.run('preparationNotesHtml([{prepTime:"20-30"},{prepTime:"20-30"}]).split("<p>").length-1'), 1);
+});
+
+test("backup validates preparation times and retains their revision", () => {
+  const menu = movableMenu();
+  menu.run('menuData[0].items[0].prepTime="30-40"; tandoorRevision=1; validateDocument(JSON.parse(documentSnapshot()))');
+  const reloaded = app(menu.json("JSON.parse(documentSnapshot())"));
+  assert.equal(reloaded.run("menuData[0].items[0].prepTime"), "30-40");
+  assert.equal(reloaded.run("tandoorRevision"), 1);
+  assert.throws(() => menu.run('menuData[0].items[0].prepTime="anything"; validateDocument(JSON.parse(documentSnapshot()))'), /Invalid item/);
+});
+
+test("Tandoor migration does not resurrect a deliberately removed section", () => {
+  const menu = movableMenu();
+  menu.run("updateTandoorMenu()");
+  assert.equal(menu.run("menuData.length"), 2);
+  assert.equal(menu.run("tandoorRevision"), 1);
+});

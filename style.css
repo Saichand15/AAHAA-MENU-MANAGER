@@ -320,6 +320,14 @@ body {
 }
 .item .name .spice { white-space: nowrap; color: #c81d11; filter: saturate(1.4); }
 .item-markers { display: inline-block; white-space: nowrap; }
+.prep-marker { color: #7a1f0f; font-weight: 700; margin-left: 1px; }
+.preparation-notes {
+  border-top: 1px solid #d8c6a8; background: #f2e6d4; color: #5a3a24;
+  padding: 8px 10px; margin-top: 9px; border-radius: 4px;
+  font: 11px/1.5 var(--heading-font);
+}
+.preparation-notes p { margin: 0; }
+.preparation-notes p + p { margin-top: 5px; }
 .item .name .veg-icon,
 .item .name .nonveg-icon { margin-left: 2px; }
 .item .price {

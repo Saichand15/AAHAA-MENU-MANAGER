@@ -17,6 +17,9 @@ Backup, import, Undo/Redo, and browser-saving status are grouped under **More op
 - Existing menus receive the updated biryani list once. **Pre-update Backup** downloads the preserved older menu for restoration if needed.
 - Biryani has a dedicated full-width price-table page, with Combos moved to the preceding page. This layout is applied once to existing menus; later manual placement is preserved. Auto-fit never splits or adds other content to the special biryani page.
 - Spice levels use chilli symbols beside the dietary icons. The imported biryani list starts at Medium (two chillies); use item **Edit > Spice Level** to change it. Extra spice-choice text is not printed.
+- Tandoor uses the supplied 15-item list, including separate 4 pc/8 pc chicken prices and Hariyali Paneer Tikka at $16.99. Existing Tandoor sections update once; breads formerly listed there move to Naan. Other menu sections and prices are preserved.
+- Preparation markers appear beside item names: `*` means maximum 20-30 minutes; `**` means maximum 30-40 minutes (Pomfret). Notes repeat under every section containing marked items, including after moving items, in preview, print, and PDF. Change the marker with item **Edit > Preparation time note**.
+- **Pre-update Backup** downloads the latest preserved menu from before the Tandoor update (or the earlier biryani update if none exists).
 - Page titles are workspace labels, not printed headings. Use sections for customer-facing headings.
 
 ## Customer view and printing
