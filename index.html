@@ -6,7 +6,7 @@
 <title>Aahaa Indian Kitchen - Menu Manager</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;900&family=Merriweather:wght@300;400;700&family=Playfair+Display:wght@500;700;900&family=Montserrat:wght@400;600;700;900&family=Oswald:wght@400;600;700&family=Raleway:wght@400;600;700&family=Cinzel:wght@500;700;900&family=Lora:wght@400;600;700&family=Open+Sans:wght@400;600;700&family=Roboto:wght@400;500;700&family=Nunito:wght@400;600;700&family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@400;500;700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=6">
+<link rel="stylesheet" href="style.css?v=7">
 <script src="assets/vendor/html2pdf.bundle.min.js"></script>
 </head>
 <body>
@@ -14,10 +14,12 @@
 <!-- ===== TOP TOOLBAR (admin controls, hidden on PDF/print) ===== -->
 <div class="toolbar">
   <div class="toolbar-left">
-    <img src="assets/logo.png" alt="Aahaa Indian Kitchen" class="toolbar-logo">
+    <span class="toolbar-logo-wrap"><img src="assets/logo.png" alt="Aahaa Indian Kitchen" class="toolbar-logo"></span>
     <span class="toolbar-title">Menu Manager</span>
   </div>
   <div class="toolbar-right">
+    <button id="menuHomeBtn" class="btn btn-outline manager-only" aria-pressed="true">Menu Layout</button>
+    <button id="todayMenuBtn" class="btn btn-outline manager-only" aria-pressed="false">Today's Menu</button>
     <button id="previewBtn" class="btn btn-outline">Customer Preview</button>
     <button id="organizeBtn" class="btn btn-outline manager-only">Pages &amp; Move</button>
     <button id="addPageBtn" class="btn btn-outline manager-only">+ Add Page</button>
@@ -37,6 +39,7 @@
         </div>
         <button id="biryaniBtn" class="btn btn-light">Import Biryani List</button>
         <button id="backupBtn" class="btn btn-light">Download Backup</button>
+        <button id="savedVersionsBtn" class="btn btn-light">Saved versions</button>
         <button id="previousBackupBtn" class="btn btn-light">Pre-update Backup</button>
         <button id="restoreBtn" class="btn btn-light">Restore Backup</button>
         <input id="restoreFile" type="file" accept=".json,application/json" hidden>
@@ -45,6 +48,27 @@
     </details>
   </div>
 </div>
+
+<main id="catalogView" class="manager-only" hidden aria-labelledby="catalogTitle">
+  <div class="catalog-heading">
+    <div><h1 id="catalogTitle">Today's Menu</h1>
+      <p>Choose the dishes available today. Changes appear in the menu, preview and PDF.</p></div>
+    <button id="catalogPreviewBtn" class="btn btn-primary">Preview Today's Menu</button>
+  </div>
+  <div class="catalog-filters">
+    <label>Find an item<input id="catalogSearch" type="search" placeholder="Search name or section"></label>
+    <label>Section<select id="catalogCategory"><option value="">All sections</option></select></label>
+    <label>Show<select id="catalogStatus">
+      <option value="">All items</option><option value="enabled">Enabled today</option>
+      <option value="disabled">Disabled</option><option value="unpriced">Needs a price</option>
+    </select></label>
+    <button id="catalogEnableBtn" class="btn btn-light">Enable filtered</button>
+    <button id="catalogDisableBtn" class="btn btn-light">Disable filtered</button>
+    <button id="catalogFitBtn" class="btn btn-light">Fit enabled items to pages</button>
+  </div>
+  <p id="catalogSummary" role="status" aria-live="polite"></p>
+  <div id="catalogList"></div>
+</main>
 
 <div id="layoutWarning" class="layout-warning manager-only" role="status" hidden></div>
 
@@ -91,7 +115,11 @@
         <option value="">None</option>
         <option value="20-30">* Maximum 20-30 minutes</option>
         <option value="30-40">** Maximum 30-40 minutes</option>
+        <option value="custom">* Custom time</option>
       </select>
+    </label>
+    <label id="customPrepTimeLabel" hidden>Custom preparation time (minutes)
+      <input id="customPrepTime" type="text" inputmode="numeric" placeholder="e.g. 45 or 45-60" maxlength="7">
     </label>
     <label>Spice Level
       <select id="itemSpice">
@@ -281,6 +309,19 @@
   </div>
 </div>
 
-<script src="script.js?v=6"></script>
+<div id="savedVersionsModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="savedVersionsTitle">
+  <div class="modal-box">
+    <h3 id="savedVersionsTitle">Saved versions</h3>
+    <p class="help">The last 10 menu versions are kept in this browser. Restore a version to preview it or download its PDF and data backup. Download backups regularly to keep copies outside this browser.</p>
+    <label>Previous version<select id="savedVersionSelect"></select></label>
+    <div class="modal-actions">
+      <button id="savedVersionsCloseBtn" class="btn btn-light">Cancel</button>
+      <button id="savedVersionsRestoreBtn" class="btn btn-primary">Restore version</button>
+    </div>
+  </div>
+</div>
+<script src="assets/menu-catalog.js?v=1"></script>
+<script src="catalog.js?v=1"></script>
+<script src="script.js?v=7"></script>
 </body>
 </html>

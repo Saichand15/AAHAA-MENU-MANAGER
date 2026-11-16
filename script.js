@@ -369,6 +369,7 @@ let designData = loadDesign();
 let menuPages = Array.isArray(storedMenu.pages) ? storedMenu.pages : [];
 let biryaniLayoutRevision = storedMenu.biryaniLayoutRevision || 0;
 let tandoorRevision = storedMenu.tandoorRevision || 0;
+let workbookRevision = storedMenu.workbookRevision || 0;
 let editingContext = null; // { sectionIndex, itemIndex } or null for new item
 let currentPageIndex = 0;
 let totalPages = 0;
@@ -439,6 +440,73 @@ function loadMenu() {
   return JSON.parse(JSON.stringify(DEFAULT_MENU));
 }
 
+const SAVED_VERSIONS_KEY = "aahaaMenuSavedVersions";
+
+function readSavedVersions() {
+  const versions = JSON.parse(localStorage.getItem(SAVED_VERSIONS_KEY) || "[]");
+  if (!Array.isArray(versions) || versions.length > 10) throw new Error("Invalid saved versions.");
+  versions.forEach(version => {
+    if (!version || typeof version.snapshot !== "string" ||
+        typeof version.savedAt !== "string" || !Number.isFinite(Date.parse(version.savedAt))) {
+      throw new Error("Invalid saved version.");
+    }
+    validateDocument(JSON.parse(version.snapshot));
+  });
+  return versions;
+}
+
+function persistMenuSnapshot(snapshot) {
+  const previous = localStorage.getItem(STORAGE_KEY);
+  if (previous && previous !== snapshot) {
+    const data = JSON.parse(previous);
+    if (data.version === 2) {
+      validateDocument(data);
+      const versions = readSavedVersions();
+      versions.unshift({ savedAt: new Date().toISOString(), snapshot: previous });
+      localStorage.setItem(SAVED_VERSIONS_KEY, JSON.stringify(versions.slice(0, 10)));
+    }
+  }
+  localStorage.setItem(STORAGE_KEY, snapshot);
+}
+
+function openSavedVersions() {
+  if (!requireManager()) return;
+  try {
+    const versions = readSavedVersions();
+    const select = document.getElementById("savedVersionSelect");
+    select.innerHTML = versions.map((version, index) =>
+      `<option value="${index}">${index + 1}. ${escapeHtml(new Date(version.savedAt).toLocaleString())}</option>`).join("");
+    if (!versions.length) select.innerHTML = '<option value="">No previous versions yet</option>';
+    document.getElementById("savedVersionsRestoreBtn").disabled = !versions.length;
+    document.getElementById("savedVersionsModal").classList.remove("hidden");
+  } catch (error) {
+    console.error("Could not load saved versions", error);
+    alert("Saved versions could not be loaded. Download a backup of your current menu.");
+  }
+}
+
+function restoreSavedVersion() {
+  if (!requireManager()) return;
+  try {
+    const value = document.getElementById("savedVersionSelect").value;
+    const version = value === "" ? null : readSavedVersions()[Number(value)];
+    if (!version) throw new Error("Choose an existing saved version.");
+    if (!confirm("Restore this menu version? Your current menu will be kept in Saved versions.")) return;
+    persistMenuSnapshot(version.snapshot);
+    undoHistory.push(documentSnapshot());
+    if (undoHistory.length > 40) undoHistory.shift();
+    redoHistory = [];
+    restoreSnapshot(version.snapshot);
+    lastSavedSnapshot = version.snapshot;
+    saveDesign();
+    document.getElementById("saveStatus").textContent = "Saved in this browser";
+    document.getElementById("savedVersionsModal").classList.add("hidden");
+  } catch (error) {
+    console.error("Could not restore saved version", error);
+    alert(`Could not restore version: ${error.message}. Download a backup before continuing.`);
+  }
+}
+
 function saveMenu() {
   if (menuReadFailed) {
     document.getElementById("saveStatus").textContent = "Not saved - restore a backup or reset first";
@@ -446,7 +514,7 @@ function saveMenu() {
   }
   const snapshot = documentSnapshot();
   try {
-    localStorage.setItem(STORAGE_KEY, snapshot);
+    persistMenuSnapshot(snapshot);
   } catch (error) {
     console.error("Could not save menu", error);
     alert("The menu could not be saved in this browser. Download a backup now to avoid losing these changes.");
@@ -704,14 +772,26 @@ function updateTandoorMenu() {
 }
 
 function prepTimeMarker(item) {
-  return item.prepTime === "30-40" ? "**" : item.prepTime === "20-30" ? "*" : "";
+  return item.prepTime === "30-40" ? "**" : item.prepTime ? "*" : "";
+}
+
+function validPrepTime(value) {
+  if (typeof value !== "string") return false;
+  if (!value) return true;
+  if (!/^[1-9]\d{0,2}(?:-[1-9]\d{0,2})?$/.test(value)) return false;
+  const [minimum, maximum] = value.split("-").map(Number);
+  return maximum === undefined || maximum >= minimum;
 }
 
 function preparationNotesHtml(items) {
   const times = new Set(items.map(item => item.prepTime));
-  return ["20-30", "30-40"].filter(time => times.has(time)).map(time =>
+  const standard = ["20-30", "30-40"].filter(time => times.has(time)).map(time =>
     `<p><strong>${prepTimeMarker({ prepTime: time })}</strong> Preparation time: Maximum ${time.replace("-", "–")} minutes from the time the order is placed.</p>`
   ).join("");
+  const custom = [...times].filter(time => time && !["20-30", "30-40"].includes(time)).map(time =>
+    `<p><strong>*</strong> ${items.filter(item => item.prepTime === time).map(item => escapeHtml(item.name)).join(", ")}: please allow ${escapeHtml(time.replace("-", "–"))} minutes after ordering.</p>`
+  ).join("");
+  return standard + custom;
 }
 
 function arrangeBiryaniPage() {
@@ -762,7 +842,7 @@ function pageColumnCount(pageId) {
     designData.columnCount === 1 ? 1 : 2;
 }
 
-function buildPages() {
+function buildPages(includeUnavailable = false) {
   const cleanView = customerPreview || document.body.classList.contains("pdf-export") || document.body.classList.contains("printing");
   return menuPages.map(page => {
     const columns = pageColumnCount(page.id);
@@ -771,12 +851,13 @@ function buildPages() {
       cols: Array.from({ length: columns }, (_, column) => menuData.flatMap((section, sectionIndex) => {
         if (section.pageId !== page.id || (columns === 1 ? 0 : section.column) !== column) return [];
         const items = section.items.map((item, itemIdx) => ({ item, itemIdx }))
-          .filter(ref => !cleanView || ref.item.available !== false);
-        if (cleanView && !items.length) return [];
+          .filter(ref => includeUnavailable || (ref.item.available !== false && itemHasPrice(ref.item)));
+        if (!items.length && (cleanView || section.items.length > 0) && !includeUnavailable) return [];
         return [{ sectionIndex, name: section.name, items }];
       }))
     };
-  });
+  }).filter(page => includeUnavailable || page.cols.some(col => col.some(chunk => chunk.items.length)) ||
+    !menuData.some(section => section.pageId === page.id && section.items.length));
 }
 
 // ---- Rendering ----
@@ -795,6 +876,7 @@ function render() {
     if (featured) pageEl.style.setProperty("--portion-count", Math.max(1, portionLabels.length));
     pageEl.id = `page-${pageIdx}`;
     pageEl.dataset.pageId = page.id;
+    pageEl.dataset.sourcePageIndex = menuPages.findIndex(entry => entry.id === page.id);
     if (pageIdx < pages.length - 1) pageEl.style.pageBreakAfter = "always";
 
     pageEl.innerHTML = `
@@ -871,6 +953,7 @@ function render() {
           const item = ref.item;
           const row = document.createElement("div");
           row.className = "item" + (item.available === false ? " unavailable" : "");
+          row.dataset.itemIndex = ref.itemIdx;
           wireDragSource(row, { sectionIndex: chunk.sectionIndex, itemIndex: ref.itemIdx });
           wireDropTarget(row, { pageId: page.id, column: colIdx, sectionIndex: chunk.sectionIndex, itemIndex: ref.itemIdx });
           row.innerHTML = `
@@ -898,7 +981,6 @@ function render() {
           notes.innerHTML = notesHtml;
           sectionDiv.appendChild(notes);
         }
-
         colEl.appendChild(sectionDiv);
       });
 
@@ -919,6 +1001,7 @@ function render() {
   populateSectionDropdown();
   if (!document.getElementById("organizeModal").classList.contains("hidden")) renderPageBoard();
   updateHistoryButtons();
+  if (!document.getElementById("catalogView").hidden) renderCatalog();
   cancelAnimationFrame(layoutCheckFrame);
   layoutCheckFrame = requestAnimationFrame(checkPageOverflow);
 }
@@ -1023,7 +1106,10 @@ function openItemModal(sIdx, iIdx) {
   document.getElementById("portionRows").innerHTML = "";
   (item?.portions || PORTION_LABELS.map(label => ({ label, price: "" }))).forEach(addPortionRow);
   document.getElementById("itemAvailable").checked = item?.available !== false;
-  document.getElementById("itemPrepTime").value = item?.prepTime || "";
+  const prepTime = item?.prepTime || "";
+  document.getElementById("itemPrepTime").value = ["", "20-30", "30-40"].includes(prepTime) ? prepTime : "custom";
+  document.getElementById("customPrepTime").value = prepTime;
+  document.getElementById("customPrepTimeLabel").hidden = document.getElementById("itemPrepTime").value !== "custom";
   updatePortionEditor();
   modal.classList.remove("hidden");
   nameInput.focus();
@@ -1066,19 +1152,29 @@ function saveItem() {
 
   let portions;
   try { portions = readPortions(); } catch (error) { alert(error.message); return; }
-  if (!name || (!portions.length && !price)) {
-    alert("Please enter a name and a price (or named portion prices).");
+  if (!name) {
+    alert("Please enter an item name.");
     return;
   }
   if (!Number.isInteger(sIdx) || !menuData[sIdx]) { alert("Choose a section first."); return; }
   const previous = editingContext ? menuData[editingContext.sIdx].items[editingContext.iIdx] : {};
+  const prepTimeChoice = document.getElementById("itemPrepTime").value;
+  const prepTime = prepTimeChoice === "custom" ? document.getElementById("customPrepTime").value.trim() : prepTimeChoice;
+  if (!validPrepTime(prepTime) || (prepTimeChoice === "custom" && !prepTime)) {
+    alert("Enter preparation minutes from 1 to 999, such as 45 or 45-60. The end time must not be less than the start.");
+    return;
+  }
   const updated = {
     ...previous, name, price: portions.length ? portions.map(portion => portion.price).join(" | ") : price,
     spice, desc, veg, portions,
     spiceOptions: "",
-    prepTime: document.getElementById("itemPrepTime").value,
+    prepTime,
     available: document.getElementById("itemAvailable").checked
   };
+  if (updated.available && !itemHasPrice(updated)) {
+    alert("Enter valid numeric prices before enabling this item, or uncheck Available to keep it as an unpriced catalog item.");
+    return;
+  }
 
   if (editingContext && editingContext.iIdx !== undefined) {
     // editing existing item — if section changed, move it
@@ -1106,7 +1202,7 @@ function openSectionModal(sectionIndex) {
   const section = editingSectionIndex === null ? null : menuData[editingSectionIndex];
   document.getElementById("sectionModalTitle").textContent = section ? "Edit Section" : "Add Section";
   document.getElementById("newSectionName").value = section?.name || "";
-  fillPageSelect("sectionPage", section?.pageId || menuPages[currentPageIndex].id);
+  fillPageSelect("sectionPage", section?.pageId || buildPages()[currentPageIndex]?.id || menuPages[0].id);
   document.getElementById("sectionColumn").value = String(section?.column || 0);
   document.getElementById("sectionColumn").disabled = pageColumnCount(selectedPageId("sectionPage")) === 1;
   if (document.getElementById("sectionColumn").disabled) document.getElementById("sectionColumn").value = "0";
@@ -1136,10 +1232,12 @@ function resetMenu() {
   if (!confirm("Reset the menu back to the original default list? This will discard any changes you made.")) return;
   menuReadFailed = false;
   menuData = normalizeMenuData(JSON.parse(JSON.stringify(DEFAULT_MENU)));
+  workbookRevision = 0;
   menuPages = [];
   initializePages();
   updateTandoorMenu();
   arrangeBiryaniPage();
+  reconcileWorkbookMenu();
   saveMenu();
   render();
 }
@@ -1189,7 +1287,7 @@ function newPageId() {
 }
 
 function documentSnapshot() {
-  return JSON.stringify({ version: 2, biryaniRevision: 1, biryaniLayoutRevision, tandoorRevision, sections: menuData, pages: menuPages, design: designData });
+  return JSON.stringify({ version: 2, biryaniRevision: 1, biryaniLayoutRevision, tandoorRevision, workbookRevision, sections: menuData, pages: menuPages, design: designData });
 }
 
 function validateDocument(data) {
@@ -1211,9 +1309,16 @@ function validateDocument(data) {
           (item.desc !== undefined && typeof item.desc !== "string") ||
           (item.spice !== undefined && typeof item.spice !== "string") ||
           (item.spiceOptions !== undefined && typeof item.spiceOptions !== "string") ||
-          (item.prepTime !== undefined && !["", "20-30", "30-40"].includes(item.prepTime)) ||
+          (item.prepTime !== undefined && !validPrepTime(item.prepTime)) ||
           (item.available !== undefined && typeof item.available !== "boolean") ||
           (item.veg !== undefined && ![true, false, "both"].includes(item.veg))) throw new Error("Invalid item in backup.");
+      if (item.workbook !== undefined) {
+        const source = item.workbook;
+        if (!source || typeof source.key !== "string" || typeof source.price !== "string" ||
+            typeof source.previousPrice !== "string" || !Array.isArray(source.sources) ||
+            source.sources.some(value => typeof value !== "string") || !Array.isArray(source.alternatives) ||
+            source.alternatives.some(value => typeof value !== "string")) throw new Error("Invalid menu source data in backup.");
+      }
       if (item.portions !== undefined && (!Array.isArray(item.portions) || item.portions.some(portion =>
         !portion || typeof portion.label !== "string" || !portion.label.trim() ||
         typeof portion.price !== "string" || !/^\$\d+\.\d{2}$/.test(portion.price)))) {
@@ -1250,6 +1355,7 @@ function restoreSnapshot(snapshot) {
   menuPages = data.pages;
   biryaniLayoutRevision = data.biryaniLayoutRevision || 0;
   tandoorRevision = data.tandoorRevision || 0;
+  workbookRevision = data.workbookRevision || 0;
   designData = { ...DEFAULT_DESIGN, ...data.design };
   applyDesign();
   render();
@@ -1262,7 +1368,7 @@ function travelHistory(redo = false) {
   if (!from.length) return;
   const snapshot = from[from.length - 1];
   try {
-    localStorage.setItem(STORAGE_KEY, snapshot);
+    persistMenuSnapshot(snapshot);
   } catch (error) {
     console.error("Could not save history", error);
     alert("Could not save this change. Download a backup before continuing.");
@@ -1290,7 +1396,8 @@ function addPage() {
   menuPages.push({ id: newPageId(), title: `Page ${menuPages.length + 1}` });
   saveMenu();
   render();
-  goToPage(menuPages.length - 1);
+  if (document.body.classList.contains("catalog-view")) showCatalog(false);
+  goToPage(totalPages - 1);
 }
 
 function renamePage(index, title) {
@@ -1425,7 +1532,7 @@ function updateMoveSections() {
 function renderPageBoard() {
   const board = document.getElementById("pageBoard");
   board.innerHTML = "";
-  buildPages().forEach((page, pageIndex) => {
+  buildPages(true).forEach((page, pageIndex) => {
     const card = document.createElement("section");
     card.className = "board-page";
     card.innerHTML = `<div class="board-page-head"><strong>Page ${pageIndex + 1}</strong>
@@ -1572,12 +1679,14 @@ function downloadBackup(previous = false) {
   let content = documentSnapshot();
   if (previous) {
     try {
+      const workbookBackup = localStorage.getItem("aahaaMenuBeforeWorkbookUpdate");
       const tandoorBackup = localStorage.getItem("aahaaMenuBeforeTandoorUpdate");
-      const saved = tandoorBackup || localStorage.getItem("aahaaMenuBeforeBiryaniUpdate");
+      const saved = workbookBackup || tandoorBackup || localStorage.getItem("aahaaMenuBeforeBiryaniUpdate");
       if (!saved) { alert("No pre-update copy exists in this browser."); return; }
       const data = JSON.parse(saved);
       const converted = Array.isArray(data) ? convertLegacyDocument(data) : { ...data, biryaniRevision: 1 };
       converted.tandoorRevision = 1;
+      converted.workbookRevision = 1;
       validateDocument(converted);
       content = JSON.stringify(converted);
     } catch (error) {
@@ -1614,6 +1723,7 @@ async function restoreBackup(event) {
 }
 
 function togglePreview() {
+  if (!customerPreview && document.body.classList.contains("catalog-view")) showCatalog(false);
   customerPreview = !customerPreview;
   document.body.classList.toggle("customer-preview", customerPreview);
   document.getElementById("previewBtn").textContent = customerPreview ? "Back to Manager" : "Customer Preview";
@@ -1623,7 +1733,8 @@ function togglePreview() {
 function overflowingColumns() {
   document.body.classList.add("measure-layout");
   const overflowing = [];
-  document.querySelectorAll("#pagesContainer .page").forEach((page, pageIndex) => {
+  document.querySelectorAll("#pagesContainer .page").forEach(page => {
+    const pageIndex = Number(page.dataset.sourcePageIndex);
     const style = getComputedStyle(page);
     const outerHeight = element => {
       const css = getComputedStyle(element);
@@ -1634,7 +1745,9 @@ function overflowingColumns() {
       outerHeight(page.querySelector(".page-header")) - outerHeight(page.querySelector(".page-footer"));
     page.querySelectorAll(".page-col").forEach((col, column) => {
       const needed = Array.from(col.children).reduce((height, section) => height + outerHeight(section), 0);
-      if (needed > available + 1) overflowing.push({ pageIndex, column, excess: needed - available });
+      if (needed > available + 1) overflowing.push({
+        pageIndex, pageNumber: Number(page.id.slice(5)) + 1, column, excess: needed - available
+      });
     });
   });
   document.body.classList.remove("measure-layout");
@@ -1646,7 +1759,7 @@ function checkPageOverflow() {
   const warning = document.getElementById("layoutWarning");
   warning.hidden = !overflowing.length;
   warning.innerHTML = overflowing.length ?
-    `Content exceeds A4 on page(s) ${[...new Set(overflowing.map(entry => entry.pageIndex + 1))].join(", ")}. Move items or <button onclick="fitPages()" class="btn btn-light">Auto-fit pages</button>. Export is blocked until it fits.` : "";
+    `Content exceeds A4 on page(s) ${[...new Set(overflowing.map(entry => entry.pageNumber))].join(", ")}. Move items or <button onclick="fitPages()" class="btn btn-light">Auto-fit pages</button>. Export is blocked until it fits.` : "";
   return overflowing.length;
 }
 
@@ -1665,28 +1778,30 @@ function fitPages() {
       break;
     }
     const sections = menuData.filter(section => section.pageId === page.id &&
-      (columns === 1 ? 0 : section.column) === overflow.column && section.items.some(item => item.available !== false));
+      (columns === 1 ? 0 : section.column) === overflow.column && section.items.some(item => item.available !== false && itemHasPrice(item)));
     const section = sections[sections.length - 1];
     if (!section) break;
-    const visibleItems = sections.reduce((count, entry) => count + entry.items.filter(item => item.available !== false).length, 0);
+    const visibleItems = sections.reduce((count, entry) => count + entry.items.filter(item => item.available !== false && itemHasPrice(item)).length, 0);
     if (visibleItems === 1) {
       alert("One item is taller than a page. Shorten its text, reduce the font size, or use one column.");
       break;
     }
     document.body.classList.add("measure-layout");
-    const sectionElement = document.querySelector(`#page-${overflow.pageIndex} .section[data-section-index="${menuData.indexOf(section)}"]`);
-    const rows = Array.from(sectionElement.querySelectorAll(".item"));
+    const sectionElement = document.querySelector(`.page[data-source-page-index="${overflow.pageIndex}"] .section[data-section-index="${menuData.indexOf(section)}"]`);
     let removedHeight = 0;
     let cutIndex = section.items.length;
     for (let index = section.items.length - 1; index >= 0; index--) {
-      if (section.items[index].available !== false) removedHeight += rows[index].getBoundingClientRect().height;
+      if (section.items[index].available !== false && itemHasPrice(section.items[index])) {
+        const row = sectionElement.querySelector(`.item[data-item-index="${index}"]`);
+        removedHeight += row.getBoundingClientRect().height;
+      }
       cutIndex = index;
       if (removedHeight >= overflow.excess) break;
     }
-    const firstVisibleIndex = section.items.findIndex(item => item.available !== false);
+    const firstVisibleIndex = section.items.findIndex(item => item.available !== false && itemHasPrice(item));
     const moveWholeSection = sections.length > 1 && cutIndex <= firstVisibleIndex;
     if (!moveWholeSection && cutIndex <= firstVisibleIndex) {
-      cutIndex = section.items.findIndex((item, index) => index > firstVisibleIndex && item.available !== false);
+      cutIndex = section.items.findIndex((item, index) => index > firstVisibleIndex && item.available !== false && itemHasPrice(item));
     }
     document.body.classList.remove("measure-layout");
     const next = nextColumnPosition({ page: overflow.pageIndex, col: overflow.column }, columns);
@@ -1734,6 +1849,10 @@ async function waitForCaptureReadiness() {
 }
 
 async function downloadPDF() {
+  if (!menuData.some(section => section.items.some(item => item.available !== false && itemHasPrice(item)))) {
+    alert("Enable at least one priced item in Today's Menu before exporting.");
+    return;
+  }
   await waitForCaptureReadiness();
   if (checkPageOverflow()) { alert("Some content exceeds A4. Return to Manager and use Auto-fit pages before exporting."); return; }
   document.body.classList.add("pdf-export");
@@ -1801,11 +1920,24 @@ async function downloadPDF() {
 }
 
 function printMenu() {
+  if (!menuData.some(section => section.items.some(item => item.available !== false && itemHasPrice(item)))) {
+    alert("Enable at least one priced item in Today's Menu before printing.");
+    return;
+  }
   if (checkPageOverflow()) { alert("Some content exceeds A4. Use Auto-fit pages before printing."); return; }
   window.print();
 }
 
 // ---- Wire up events ----
+document.getElementById("todayMenuBtn").addEventListener("click", () => showCatalog(true));
+document.getElementById("menuHomeBtn").addEventListener("click", () => showCatalog(false));
+document.getElementById("catalogPreviewBtn").addEventListener("click", togglePreview);
+document.getElementById("catalogSearch").addEventListener("input", renderCatalog);
+document.getElementById("catalogCategory").addEventListener("change", renderCatalog);
+document.getElementById("catalogStatus").addEventListener("change", renderCatalog);
+document.getElementById("catalogEnableBtn").addEventListener("click", () => setFilteredAvailability(true));
+document.getElementById("catalogDisableBtn").addEventListener("click", () => setFilteredAvailability(false));
+document.getElementById("catalogFitBtn").addEventListener("click", fitPages);
 document.getElementById("addItemBtn").addEventListener("click", () => openItemModal());
 document.getElementById("addSectionBtn").addEventListener("click", () => openSectionModal());
 document.getElementById("addPageBtn").addEventListener("click", addPage);
@@ -1845,6 +1977,12 @@ document.getElementById("biryaniReviewBtn").addEventListener("click", () => {
 });
 document.getElementById("biryaniSaveBtn").addEventListener("click", importBiryani);
 document.getElementById("backupBtn").addEventListener("click", () => downloadBackup());
+document.getElementById("savedVersionsBtn").addEventListener("click", openSavedVersions);
+document.getElementById("savedVersionsCloseBtn").addEventListener("click", () => document.getElementById("savedVersionsModal").classList.add("hidden"));
+document.getElementById("savedVersionsRestoreBtn").addEventListener("click", restoreSavedVersion);
+document.getElementById("itemPrepTime").addEventListener("change", () => {
+  document.getElementById("customPrepTimeLabel").hidden = document.getElementById("itemPrepTime").value !== "custom";
+});
 document.getElementById("previousBackupBtn").addEventListener("click", () => downloadBackup(true));
 document.getElementById("restoreBtn").addEventListener("click", () => document.getElementById("restoreFile").click());
 document.getElementById("restoreFile").addEventListener("change", restoreBackup);
@@ -1916,11 +2054,21 @@ if (needsTandoorUpdate) {
 }
 const needsBiryaniLayout = !menuReadFailed && biryaniLayoutRevision !== 1;
 if (needsBiryaniLayout) arrangeBiryaniPage();
+const needsWorkbookUpdate = !menuReadFailed && workbookRevision !== 1;
+if (needsWorkbookUpdate) {
+  try {
+    localStorage.setItem("aahaaMenuBeforeWorkbookUpdate", documentSnapshot());
+    reconcileWorkbookMenu();
+  } catch (error) {
+    console.error("Could not apply menu update", error);
+    alert("The menu update could not be completed. Download a backup, check browser storage and reload.");
+  }
+}
 lastSavedSnapshot = documentSnapshot();
 applyDesign();
 render();
 saveMenu();
-if (needsBiryaniUpdate || needsBiryaniLayout || needsTandoorUpdate) {
+if (needsBiryaniUpdate || needsBiryaniLayout || needsTandoorUpdate || needsWorkbookUpdate) {
   waitForCaptureReadiness().then(() => {
     fitPages();
   }).catch(error => {
@@ -1929,3 +2077,4 @@ if (needsBiryaniUpdate || needsBiryaniLayout || needsTandoorUpdate) {
   });
 }
 if (document.fonts?.ready) document.fonts.ready.then(checkPageOverflow);
+if (location.hash === "#today-menu") showCatalog(true);

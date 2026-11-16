@@ -5,7 +5,9 @@ const path = require("node:path");
 const vm = require("node:vm");
 const { randomUUID } = require("node:crypto");
 
-const source = fs.readFileSync(path.join(__dirname, "..", "script.js"), "utf8")
+const source = fs.readFileSync(path.join(__dirname, "..", "assets", "menu-catalog.js"), "utf8") + "\n" +
+  fs.readFileSync(path.join(__dirname, "..", "catalog.js"), "utf8") + "\n" +
+  fs.readFileSync(path.join(__dirname, "..", "script.js"), "utf8")
   .split("// ---- Wire up events ----")[0];
 
 function app(saved) {
@@ -22,7 +24,7 @@ function app(saved) {
       body: { classList: { contains: () => false } },
       getElementById: id => {
         if (!nodes.has(id)) nodes.set(id, {
-          textContent: "", disabled: false, value: "",
+          textContent: "", disabled: false, value: "", hidden: true,
           classList: { add() {}, remove() {}, contains: () => true }
         });
         return nodes.get(id);
@@ -33,7 +35,7 @@ function app(saved) {
     confirm: () => true
   });
   vm.runInContext(source, context);
-  vm.runInContext("render = () => {}; applyDesign = () => {}; escapeHtml = value => String(value ?? '');", context);
+  vm.runInContext("render = () => {}; renderCatalog = () => {}; applyDesign = () => {}; escapeHtml = value => String(value ?? '');", context);
   return {
     run: code => vm.runInContext(code, context),
     json: code => JSON.parse(vm.runInContext(`JSON.stringify(${code})`, context)),
@@ -145,7 +147,7 @@ test("moving a whole section and undo/redo restore exact placement and content",
 test("preview hides unavailable items and empty sections without deleting them", () => {
   const menu = movableMenu();
   menu.run("menuData[0].items.forEach(item=>item.available=false); customerPreview=true");
-  assert.equal(menu.run("buildPages()[0].cols.flat().length"), 0);
+  assert.equal(menu.run('buildPages().some(page=>page.id==="p1")'), false);
   assert.equal(menu.run("menuData[0].items.length"), 3);
 });
 
@@ -343,7 +345,7 @@ test("Tandoor migration replaces old entries once, preserves breads and other me
   reloaded.run("validateDocument(JSON.parse(documentSnapshot()))");
 });
 
-test("preparation notes use distinct matching stars and follow moved items", () => {
+test("preparation notes use matching stars and follow moved items", () => {
   const menu = movableMenu();
   menu.run(`
     menuData[0].items[0].prepTime="20-30";
@@ -352,9 +354,12 @@ test("preparation notes use distinct matching stars and follow moved items", () 
   `);
   const sourceNotes = menu.run("preparationNotesHtml(menuData[0].items)");
   const destinationNotes = menu.run("preparationNotesHtml(menuData[1].items)");
-  assert.match(sourceNotes, /<strong>\*<\/strong> Preparation time: Maximum 20–30 minutes from the time the order is placed/);
+  assert.match(sourceNotes, /<strong>\*<\/strong> Preparation time: Maximum 20–30 minutes/);
   assert.doesNotMatch(sourceNotes, /30–40/);
-  assert.match(destinationNotes, /<strong>\*\*<\/strong> Preparation time: Maximum 30–40 minutes from the time the order is placed/);
+  assert.match(destinationNotes, /<strong>\*\*<\/strong> Preparation time: Maximum 30–40 minutes/);
+  assert.equal(menu.run('prepTimeMarker({prepTime:"20-30"})'), "*");
+  assert.equal(menu.run('prepTimeMarker({prepTime:"30-40"})'), "**");
+  assert.equal(menu.run('prepTimeMarker({})'), "");
   assert.equal(menu.run("preparationNotesHtml([{name:'No preparation time'}])"), "");
   assert.equal(menu.run('preparationNotesHtml([{prepTime:"20-30"},{prepTime:"20-30"}]).split("<p>").length-1'), 1);
 });
@@ -373,4 +378,178 @@ test("Tandoor migration does not resurrect a deliberately removed section", () =
   menu.run("updateTandoorMenu()");
   assert.equal(menu.run("menuData.length"), 2);
   assert.equal(menu.run("tandoorRevision"), 1);
+});
+
+test("workbook catalog covers all 721 menu source rows from all three sheets", () => {
+  const menu = app();
+  assert.equal(menu.run("WORKBOOK_MENU.length"), 721);
+  assert.deepEqual(menu.json("[...new Set(WORKBOOK_MENU.map(row=>row.source.split('!')[0]))]"), [
+    "With pricing", "Version 1", "Spice Level"
+  ]);
+  assert.equal(menu.run("workbookCatalog().reduce((count,entry)=>count+entry.sources.length,0)"), 721);
+  assert.equal(menu.run('WORKBOOK_MENU.some(row=>/^(Weekend Special|Preparation Time|Price|Non Veg|Veg)$/i.test(row.name))'), false);
+  assert.equal(menu.run('workbookCatalog().find(entry=>entry.name==="Veggie Jalfrezi").section'), "Curries - Veg");
+});
+
+test("workbook reconciliation keeps enabled items, applies Excel prices and adds extras disabled", () => {
+  const menu = app();
+  menu.run("initializePages(); arrangeBiryaniPage()");
+  const active = menu.json("menuData.flatMap(s=>s.items).filter(item=>item.available!==false).map(item=>item.name).sort()");
+  menu.run("reconcileWorkbookMenu()");
+  assert.deepEqual(menu.json("menuData.flatMap(s=>s.items).filter(item=>item.available!==false).map(item=>item.name).sort()"), active);
+  assert.equal(menu.run('menuData.flatMap(s=>s.items).find(item=>item.name==="Bhel Puri").price'), "$10.99");
+  assert.equal(menu.run('menuData.flatMap(s=>s.items).find(item=>item.name==="Gobi 555").price'), "$14.99");
+  assert.equal(menu.run('menuData.flatMap(s=>s.items).find(item=>item.name==="Paneer Naan").price'), "$6.99");
+  assert.equal(menu.run('menuData.flatMap(s=>s.items).find(item=>item.name==="Chicken/Goat Rogan Josh").price'), "$14.99 | $19.99");
+  assert.equal(menu.run('menuData.flatMap(s=>s.items).find(item=>item.name==="Chicken 65").available'), false);
+  assert.equal(menu.run("menuData.flatMap(s=>s.items).some(item=>!itemHasPrice(item)&&item.available!==false)"), false);
+  assert.equal(menu.run("workbookCatalog().every(entry=>menuData.some(s=>s.items.some(item=>item.workbook?.key===entry.key)))"), true);
+  menu.run("validateDocument(JSON.parse(documentSnapshot()))");
+});
+
+test("Excel price comparisons preserve old prices and flag conflicting Egg Curry prices", () => {
+  const menu = app();
+  menu.run("initializePages(); reconcileWorkbookMenu()");
+  assert.deepEqual(menu.json('menuData.flatMap(s=>s.items).find(item=>item.name==="Bhel Puri").workbook.previousPrice'), "$11.99");
+  const egg = menu.json('workbookCatalog().find(entry=>entry.name==="Egg Curry")');
+  assert.equal(egg.price, "$14.99");
+  assert.deepEqual(egg.alternatives, ["With pricing!Y27: $13.99"]);
+  assert.ok(egg.sources.includes("With pricing!T8"));
+});
+
+test("workbook normalization matches spelling and quantities without merging different sizes", () => {
+  const menu = app();
+  assert.equal(menu.run('catalogItemKey("Tandoor","Tandoori Chicken 8pc*")===catalogItemKey("Tandoor","Tandoori Chicken 8 pc")'), true);
+  assert.equal(menu.run('catalogItemKey("Snacks and Chaat","Paani Puri 6Pcs")===catalogItemKey("Snacks and Chaat","Pani Puri (6 pcs)")'), true);
+  assert.equal(menu.run('catalogItemKey("Biryani","Mutton Ghee Roast Briyani")===catalogItemKey("Biryani","Mutton Ghee Roast Biryani")'), true);
+  assert.equal(menu.run('catalogItemKey("Snacks and Chaat","Medu Vada 2pcs")===catalogItemKey("Snacks and Chaat","Medu Vada 3pcs")'), false);
+});
+
+test("catalog toggles sync home output, undo/redo and persisted availability", () => {
+  const menu = movableMenu();
+  menu.run("setCatalogAvailability(0,0,false)");
+  assert.deepEqual(menu.json("buildPages()[0].cols[0][0].items.map(ref=>ref.item.name)"), ["B", "C"]);
+  assert.equal(menu.run("buildPages(true)[0].cols[0][0].items.length"), 3);
+  assert.equal(app(menu.json("JSON.parse(documentSnapshot())")).run("menuData[0].items[0].available"), false);
+  menu.run("travelHistory()");
+  assert.equal(menu.run("buildPages()[0].cols[0][0].items.length"), 3);
+  menu.run("travelHistory(true); setCatalogAvailability(0,0,true)");
+  assert.equal(menu.run("buildPages()[0].cols[0][0].items.length"), 3);
+});
+
+test("unpriced items cannot be enabled by individual or bulk catalog controls", () => {
+  const menu = movableMenu();
+  menu.run(`
+    menuData[0].items[0].price=""; menuData[0].items[0].available=false;
+    setCatalogAvailability(0,0,true);
+  `);
+  assert.equal(menu.run("menuData[0].items[0].available"), false);
+  assert.match(menu.alerts[0], /valid price/);
+  menu.run('document.getElementById("catalogCategory").value="Soup"; setFilteredAvailability(true)');
+  assert.equal(menu.run("menuData[0].items[0].available"), false);
+  assert.equal(menu.run("menuData[0].items[1].available"), true);
+});
+
+test("bulk actions respect search, section and availability filters together", () => {
+  const menu = movableMenu();
+  menu.run(`
+    document.getElementById("catalogSearch").value="A";
+    document.getElementById("catalogCategory").value="Soup";
+    setFilteredAvailability(false);
+  `);
+  assert.equal(menu.run("menuData[0].items[0].available"), false);
+  assert.equal(menu.run("menuData[1].items[0].available"), undefined);
+  menu.run('document.getElementById("catalogStatus").value="disabled"');
+  assert.deepEqual(menu.json("filteredCatalogItems().map(entry=>entry.item.name)"), ["A"]);
+});
+
+test("disabled-only pages and sections are absent from output, intentional blank pages remain", () => {
+  const menu = movableMenu();
+  menu.run(`
+    menuData[1].items[0].available=false;
+    menuPages.push({id:"blank",title:"Intentional blank"});
+    menuPages.push({id:"catalog",title:"Catalog",catalogPage:true});
+    menuData.push({name:"Mocktails",pageId:"catalog",column:0,items:[{name:"New drink",price:"",available:false}]});
+  `);
+  assert.deepEqual(menu.json("buildPages().map(page=>page.id)"), ["p1", "blank"]);
+  assert.equal(menu.run("buildPages(true).length"), 4);
+});
+
+test("workbook import is one-time and does not overwrite subsequent daily edits on reload", () => {
+  const menu = app();
+  menu.run("initializePages(); reconcileWorkbookMenu()");
+  menu.run('menuData.flatMap(s=>s.items).find(item=>item.name==="Bhel Puri").price="$12.34"');
+  const snapshot = menu.json("JSON.parse(documentSnapshot())");
+  const reloaded = app(snapshot);
+  reloaded.run("reconcileWorkbookMenu()");
+  assert.deepEqual(reloaded.json("JSON.parse(documentSnapshot())"), snapshot);
+});
+
+test("adding a page navigates to its visible index when disabled-only pages are omitted", () => {
+  const menu = movableMenu();
+  menu.run(`
+    menuData[1].items[0].available=false;
+    render = () => { totalPages = buildPages().length; };
+    goToPage = index => { globalThis.lastNavigatedPage = index; };
+    addPage();
+  `);
+  assert.equal(menu.run("menuPages.length"), 3);
+  assert.equal(menu.run("lastNavigatedPage"), 1);
+});
+
+test("price checks accept existing multi-prices but reject invalid or empty amounts", () => {
+  const menu = app();
+  assert.equal(menu.run('itemHasPrice({price:"$7.99 | $8.99"})'), true);
+  assert.equal(menu.run('itemHasPrice({price:"",portions:[{label:"Single",price:"$12.99"}]})'), true);
+  for (const price of ["", "TBD", "-1", "$12.999", "$2.00 | ", "$100000"]) {
+    assert.equal(menu.run(`itemHasPrice({price:${JSON.stringify(price)}})`), false);
+  }
+});
+
+test("custom preparation times validate, render with stars and survive backup reload", () => {
+  const menu = movableMenu();
+  for (const value of ["", "1", "45", "45-60", "999"]) {
+    assert.equal(menu.run(`validPrepTime(${JSON.stringify(value)})`), true);
+  }
+  for (const value of ["0", "60-45", "-1", "1000", "soon", "1.5", "20-"]) {
+    assert.equal(menu.run(`validPrepTime(${JSON.stringify(value)})`), false);
+  }
+  menu.run('menuData[0].items[0].prepTime="45-60"; validateDocument(JSON.parse(documentSnapshot()))');
+  assert.equal(menu.run('prepTimeMarker(menuData[0].items[0])'), "*");
+  assert.match(menu.run("preparationNotesHtml(menuData[0].items)"), /<strong>\*<\/strong> A: please allow 45–60 minutes/);
+  const reloaded = app(menu.json("JSON.parse(documentSnapshot())"));
+  assert.equal(reloaded.run("menuData[0].items[0].prepTime"), "45-60");
+});
+
+test("saved versions retain ten prior states, ignore unchanged saves and survive reload", () => {
+  const menu = movableMenu();
+  menu.run('saveMenu(); globalThis.firstSnapshot=documentSnapshot(); menuData[0].items[0].name="Edited"; saveMenu()');
+  assert.equal(menu.run("readSavedVersions().length"), 1);
+  assert.equal(menu.run("readSavedVersions()[0].snapshot === firstSnapshot"), true);
+  menu.run("saveMenu()");
+  assert.equal(menu.run("readSavedVersions().length"), 1);
+  menu.run('for(let i=0;i<15;i++){menuData[0].items[0].name="Edit "+i;saveMenu();}');
+  assert.equal(menu.run("readSavedVersions().length"), 10);
+  const reloaded = app(menu.json("JSON.parse(documentSnapshot())"));
+  reloaded.storage.set("aahaaMenuSavedVersions", menu.storage.get("aahaaMenuSavedVersions"));
+  assert.equal(reloaded.run("readSavedVersions().length"), 10);
+  reloaded.run('document.getElementById("savedVersionSelect").value="0"; restoreSavedVersion()');
+  assert.equal(reloaded.run("menuData[0].items[0].name"), "Edit 13");
+  assert.equal(reloaded.run("JSON.parse(readSavedVersions()[0].snapshot).sections[0].items[0].name"), "Edit 14");
+  assert.equal(reloaded.run("JSON.parse(localStorage.getItem(STORAGE_KEY)).sections[0].items[0].name"), "Edit 13");
+});
+
+test("corrupt saved versions and storage errors are reported without overwriting the current menu", () => {
+  const menu = movableMenu();
+  menu.run('saveMenu(); globalThis.before=localStorage.getItem(STORAGE_KEY)');
+  menu.storage.set("aahaaMenuSavedVersions", '{"invalid":true}');
+  assert.throws(() => menu.run("readSavedVersions()"), /Invalid saved versions/);
+  menu.run('menuData[0].items[0].name="Unsaved"');
+  assert.equal(menu.run("saveMenu()"), false);
+  assert.equal(menu.run("localStorage.getItem(STORAGE_KEY)===before"), true);
+  assert.match(menu.alerts.at(-1), /could not be saved/);
+  menu.storage.set("aahaaMenuSavedVersions", "[]");
+  menu.run('localStorage.setItem = () => { throw new Error("Storage full"); }');
+  assert.equal(menu.run("saveMenu()"), false);
+  assert.equal(menu.run("localStorage.getItem(STORAGE_KEY)===before"), true);
 });
