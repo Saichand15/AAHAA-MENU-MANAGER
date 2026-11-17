@@ -362,8 +362,27 @@ const DEFAULT_MENU = [
 ];
 
 // ---- State ----
+const DEFAULT_PRINTED_TEXT = {
+  legendTitle: "Spice Level", mild: "Mild", medium: "Medium", hot: "Hot",
+  veg: "Veg", nonveg: "Non-Veg", tagline: "Feel the Taste",
+  footer: "Aahaa Indian Kitchen · 1034 Weiland Rd, Buffalo Grove, IL 60089 · (872) 872-2422",
+  biryaniSubtitle: "Freshly prepared biryani",
+  preparation: "Preparation time approximately {minutes} minutes",
+  generalPreparation: "Please allow approximately 10–15 minutes for all other items. Preparation times may vary during busy periods.",
+  customPreparation: "{items}: please allow {minutes} minutes after ordering."
+};
+const PRINTED_TEXT_LABELS = {
+  legendTitle: "Legend heading", mild: "Mild label", medium: "Medium label", hot: "Hot label",
+  veg: "Vegetarian label", nonveg: "Non-vegetarian label", tagline: "Logo tagline",
+  footer: "Footer (all pages)", biryaniSubtitle: "Biryani table subtitle",
+  preparation: "Standard preparation message ({minutes} inserts the time)",
+  generalPreparation: "General preparation note (below every menu page)",
+  customPreparation: "Custom-time message ({items} inserts dish names; {minutes} inserts the time)"
+};
 let menuReadFailed = false;
 const storedMenu = loadMenu();
+let printedText = loadPrintedText(storedMenu.printedText);
+let editingPrintedPageId = null;
 let menuData = normalizeMenuData(Array.isArray(storedMenu) ? storedMenu : storedMenu.sections);
 let designData = loadDesign();
 let menuPages = Array.isArray(storedMenu.pages) ? storedMenu.pages : [];
@@ -771,8 +790,20 @@ function updateTandoorMenu() {
   tandoorRevision = 1;
 }
 
+function loadPrintedText(saved) {
+  const text = { ...DEFAULT_PRINTED_TEXT, ...saved };
+  if (text.generalPreparation === "Note: All other items preparation time approximately 10 to 15 minutes based on timing.") {
+    text.generalPreparation = DEFAULT_PRINTED_TEXT.generalPreparation;
+  }
+  if (saved && !Object.hasOwn(saved, "generalPreparation") &&
+      saved.preparation === "Preparation time: Maximum {minutes} minutes from the time the order is placed.") {
+    text.preparation = DEFAULT_PRINTED_TEXT.preparation;
+  }
+  return text;
+}
+
 function prepTimeMarker(item) {
-  return item.prepTime === "30-40" ? "**" : item.prepTime ? "*" : "";
+  return item.prepTime === "30-40" ? "**" : item.prepTime || item.prepNote ? "*" : "";
 }
 
 function validPrepTime(value) {
@@ -784,14 +815,56 @@ function validPrepTime(value) {
 }
 
 function preparationNotesHtml(items) {
-  const times = new Set(items.map(item => item.prepTime));
+  const automatic = items.filter(item => !item.prepNote);
+  const times = new Set(automatic.map(item => item.prepTime));
   const standard = ["20-30", "30-40"].filter(time => times.has(time)).map(time =>
-    `<p><strong>${prepTimeMarker({ prepTime: time })}</strong> Preparation time: Maximum ${time.replace("-", "–")} minutes from the time the order is placed.</p>`
+    `<p><strong>${prepTimeMarker({ prepTime: time })}</strong> ${escapeHtml(printedText.preparation.replaceAll("{minutes}", time.replace("-", " to ")))}</p>`
   ).join("");
   const custom = [...times].filter(time => time && !["20-30", "30-40"].includes(time)).map(time =>
-    `<p><strong>*</strong> ${items.filter(item => item.prepTime === time).map(item => escapeHtml(item.name)).join(", ")}: please allow ${escapeHtml(time.replace("-", "–"))} minutes after ordering.</p>`
+    `<p><strong>*</strong> ${escapeHtml(printedText.customPreparation.replaceAll("{minutes}", time.replace("-", "–")).replaceAll("{items}", automatic.filter(item => item.prepTime === time).map(item => item.name).join(", ")))}</p>`
   ).join("");
-  return standard + custom;
+  return standard + custom + items.filter(item => item.prepNote).map(item =>
+    `<p><strong>${prepTimeMarker(item)}</strong> ${escapeHtml(item.name)}: ${escapeHtml(item.prepNote)}</p>`).join("");
+}
+
+function openPrintedContent(pageIndex) {
+  if (!requireManager()) return;
+  editingPrintedPageId = Number.isInteger(pageIndex) ? menuPages[pageIndex]?.id : null;
+  document.getElementById("printedTextFields").innerHTML = "";
+  for (const key of Object.keys(DEFAULT_PRINTED_TEXT)) {
+    const label = document.createElement("label");
+    label.textContent = PRINTED_TEXT_LABELS[key];
+    const input = document.createElement("textarea");
+    input.id = `printed-${key}`;
+    input.rows = key === "footer" || key.includes("reparation") ? 2 : 1;
+    input.maxLength = 1000;
+    input.value = printedText[key];
+    label.appendChild(input);
+    document.getElementById("printedTextFields").appendChild(label);
+  }
+  const page = menuPages.find(page => page.id === editingPrintedPageId);
+  document.getElementById("printedPageHeadingLabel").hidden = !page;
+  document.getElementById("printedPageHeading").value = page?.heading || "";
+  document.getElementById("printedContentModal").classList.remove("hidden");
+}
+
+function savePrintedContent() {
+  if (!requireManager()) return;
+  const updated = Object.fromEntries(Object.keys(DEFAULT_PRINTED_TEXT).map(key =>
+    [key, document.getElementById(`printed-${key}`).value.trim()]));
+  if (Object.values(updated).some(value => value.length > 1000)) {
+    alert("Keep each text field within 1,000 characters.");
+    return;
+  }
+  const page = menuPages.find(page => page.id === editingPrintedPageId);
+  const heading = document.getElementById("printedPageHeading").value.trim();
+  if (heading.length > 200) { alert("Keep the page heading within 200 characters."); return; }
+  printedText = updated;
+  if (page) page.heading = heading;
+  const saved = saveMenu();
+  render();
+  if (!saved) return;
+  document.getElementById("printedContentModal").classList.add("hidden");
 }
 
 function arrangeBiryaniPage() {
@@ -888,30 +961,37 @@ function render() {
       </div>
       <div class="page-header">
         <div class="page-legend">
-          <div class="legend-title">Spice Level</div>
+          <div class="legend-title">${escapeHtml(printedText.legendTitle)}</div>
           <div class="legend-row">
-            <span class="legend-item"><span class="legend-chili">🌶</span> Mild</span>
-            <span class="legend-item"><span class="legend-chili">🌶🌶</span> Medium</span>
-            <span class="legend-item"><span class="legend-chili">🌶🌶🌶</span> Hot</span>
+            <span class="legend-item"><span class="legend-chili">🌶</span> ${escapeHtml(printedText.mild)}</span>
+            <span class="legend-item"><span class="legend-chili">🌶🌶</span> ${escapeHtml(printedText.medium)}</span>
+            <span class="legend-item"><span class="legend-chili">🌶🌶🌶</span> ${escapeHtml(printedText.hot)}</span>
           </div>
           <div class="legend-row">
-            <span class="legend-item"><span class="veg-icon"></span> Veg</span>
-            <span class="legend-item"><span class="nonveg-icon"></span> Non-Veg</span>
+            <span class="legend-item"><span class="veg-icon"></span> ${escapeHtml(printedText.veg)}</span>
+            <span class="legend-item"><span class="nonveg-icon"></span> ${escapeHtml(printedText.nonveg)}</span>
           </div>
         </div>
         <div class="page-logo-wrap">
           <img src="assets/logo.png" alt="Aahaa Indian Kitchen" class="page-logo">
-          <div class="page-tagline">Feel the Taste</div>
+          <div class="page-tagline">${escapeHtml(printedText.tagline)}</div>
         </div>
       </div>
+      ${page.heading ? `<h1 class="printed-page-heading">${escapeHtml(page.heading)}</h1>` : ""}
       <div class="page-body${colsPerPage === 1 ? " single-col" : ""}"></div>
-      <div class="page-footer">Aahaa Indian Kitchen &middot; 1034 Weiland Rd, Buffalo Grove, IL 60089 &middot; (872) 872-2422</div>
+      ${printedText.generalPreparation ? `<p class="general-preparation-note">${escapeHtml(printedText.generalPreparation)}</p>` : ""}
+      <div class="page-footer">${escapeHtml(printedText.footer)}</div>
     `;
 
     const bodyEl = pageEl.querySelector(".page-body");
     const pageTools = document.createElement("div");
     pageTools.className = "page-tools manager-only";
     pageTools.textContent = `${pageIdx + 1}. ${page.title}`;
+    const contentButton = document.createElement("button");
+    contentButton.className = "btn btn-light";
+    contentButton.textContent = "Edit heading, legend & footer";
+    contentButton.addEventListener("click", () => openPrintedContent(menuPages.findIndex(entry => entry.id === page.id)));
+    pageTools.appendChild(contentButton);
     pageEl.insertBefore(pageTools, pageEl.firstChild);
     page.cols.forEach((colChunks, colIdx) => {
       const colEl = document.createElement("div");
@@ -945,7 +1025,7 @@ function render() {
         if (featured && portionLabels.length) {
           const priceHeader = document.createElement("div");
           priceHeader.className = "featured-price-header";
-          priceHeader.innerHTML = `<span>Freshly prepared biryani</span><div>${portionLabels.map(label => `<span>${escapeHtml(label)}</span>`).join("")}</div>`;
+          priceHeader.innerHTML = `<span>${escapeHtml(printedText.biryaniSubtitle)}</span><div>${portionLabels.map(label => `<span>${escapeHtml(label)}</span>`).join("")}</div>`;
           sectionDiv.appendChild(priceHeader);
         }
 
@@ -958,7 +1038,7 @@ function render() {
           wireDropTarget(row, { pageId: page.id, column: colIdx, sectionIndex: chunk.sectionIndex, itemIndex: ref.itemIdx });
           row.innerHTML = `
             <div class="item-top">
-              <span class="name">${escapeHtml(item.name)}${prepTimeMarker(item) ? `<sup class="prep-marker" aria-label="Preparation time ${escapeHtml(item.prepTime)} minutes">${prepTimeMarker(item)}</sup>` : ""}<span class="item-markers">${vegIconHtml(item.veg)}${item.spice ? `&nbsp;<span class="spice">${escapeHtml(item.spice)}</span>` : ""}</span></span>
+              <span class="name">${escapeHtml(item.name)}${prepTimeMarker(item) ? `<sup class="prep-marker" aria-label="Preparation information">${prepTimeMarker(item)}</sup>` : ""}<span class="item-markers">${vegIconHtml(item.veg)}${item.spice ? `&nbsp;<span class="spice">${escapeHtml(item.spice)}</span>` : ""}</span></span>
               ${item.portions?.length ? "" : `<span class="price">${escapeHtml(item.price)}</span>`}
               <span class="item-actions">
                 <button title="Edit" onclick="openItemModal(${chunk.sectionIndex}, ${ref.itemIdx})">✎</button>
@@ -979,6 +1059,24 @@ function render() {
           notes.className = "preparation-notes";
           notes.setAttribute("aria-label", "Preparation times");
           notes.innerHTML = notesHtml;
+          const noteTools = document.createElement("details");
+          noteTools.className = "preparation-edit-tools manager-only";
+          const noteSummary = document.createElement("summary");
+          noteSummary.textContent = "Edit preparation info";
+          noteTools.appendChild(noteSummary);
+          const editWording = document.createElement("button");
+          editWording.className = "btn btn-light";
+          editWording.textContent = "Edit preparation wording";
+          editWording.addEventListener("click", () => openPrintedContent());
+          noteTools.appendChild(editWording);
+          chunk.items.filter(ref => prepTimeMarker(ref.item)).forEach(ref => {
+            const editItem = document.createElement("button");
+            editItem.className = "btn btn-light";
+            editItem.textContent = `Edit ${ref.item.name} note`;
+            editItem.addEventListener("click", () => openItemModal(chunk.sectionIndex, ref.itemIdx));
+            noteTools.appendChild(editItem);
+          });
+          notes.appendChild(noteTools);
           sectionDiv.appendChild(notes);
         }
         colEl.appendChild(sectionDiv);
@@ -1109,6 +1207,7 @@ function openItemModal(sIdx, iIdx) {
   const prepTime = item?.prepTime || "";
   document.getElementById("itemPrepTime").value = ["", "20-30", "30-40"].includes(prepTime) ? prepTime : "custom";
   document.getElementById("customPrepTime").value = prepTime;
+  document.getElementById("itemPrepNote").value = item?.prepNote || "";
   document.getElementById("customPrepTimeLabel").hidden = document.getElementById("itemPrepTime").value !== "custom";
   updatePortionEditor();
   modal.classList.remove("hidden");
@@ -1160,6 +1259,8 @@ function saveItem() {
   const previous = editingContext ? menuData[editingContext.sIdx].items[editingContext.iIdx] : {};
   const prepTimeChoice = document.getElementById("itemPrepTime").value;
   const prepTime = prepTimeChoice === "custom" ? document.getElementById("customPrepTime").value.trim() : prepTimeChoice;
+  const prepNote = document.getElementById("itemPrepNote").value.trim();
+  if (prepNote.length > 1000) { alert("Keep the preparation message within 1,000 characters."); return; }
   if (!validPrepTime(prepTime) || (prepTimeChoice === "custom" && !prepTime)) {
     alert("Enter preparation minutes from 1 to 999, such as 45 or 45-60. The end time must not be less than the start.");
     return;
@@ -1168,7 +1269,7 @@ function saveItem() {
     ...previous, name, price: portions.length ? portions.map(portion => portion.price).join(" | ") : price,
     spice, desc, veg, portions,
     spiceOptions: "",
-    prepTime,
+    prepTime, prepNote,
     available: document.getElementById("itemAvailable").checked
   };
   if (updated.available && !itemHasPrice(updated)) {
@@ -1232,6 +1333,7 @@ function resetMenu() {
   if (!confirm("Reset the menu back to the original default list? This will discard any changes you made.")) return;
   menuReadFailed = false;
   menuData = normalizeMenuData(JSON.parse(JSON.stringify(DEFAULT_MENU)));
+  printedText = { ...DEFAULT_PRINTED_TEXT };
   workbookRevision = 0;
   menuPages = [];
   initializePages();
@@ -1287,7 +1389,7 @@ function newPageId() {
 }
 
 function documentSnapshot() {
-  return JSON.stringify({ version: 2, biryaniRevision: 1, biryaniLayoutRevision, tandoorRevision, workbookRevision, sections: menuData, pages: menuPages, design: designData });
+  return JSON.stringify({ version: 2, biryaniRevision: 1, biryaniLayoutRevision, tandoorRevision, workbookRevision, sections: menuData, pages: menuPages, design: designData, printedText });
 }
 
 function validateDocument(data) {
@@ -1299,6 +1401,7 @@ function validateDocument(data) {
       throw new Error("Invalid or duplicate page in backup.");
     }
     if (page.layout !== undefined && page.layout !== "biryani") throw new Error("Invalid page layout in backup.");
+    if (page.heading !== undefined && (typeof page.heading !== "string" || page.heading.length > 200)) throw new Error("Invalid page heading in backup.");
     ids.add(page.id);
   }
   for (const section of data.sections) {
@@ -1310,6 +1413,7 @@ function validateDocument(data) {
           (item.spice !== undefined && typeof item.spice !== "string") ||
           (item.spiceOptions !== undefined && typeof item.spiceOptions !== "string") ||
           (item.prepTime !== undefined && !validPrepTime(item.prepTime)) ||
+          (item.prepNote !== undefined && (typeof item.prepNote !== "string" || item.prepNote.length > 1000)) ||
           (item.available !== undefined && typeof item.available !== "boolean") ||
           (item.veg !== undefined && ![true, false, "both"].includes(item.veg))) throw new Error("Invalid item in backup.");
       if (item.workbook !== undefined) {
@@ -1325,6 +1429,11 @@ function validateDocument(data) {
         throw new Error("Invalid portion prices in backup.");
       }
     }
+  }
+  if (data.printedText !== undefined && (!data.printedText || typeof data.printedText !== "object" ||
+      Array.isArray(data.printedText) || Object.entries(data.printedText).some(([key, value]) =>
+        !Object.hasOwn(DEFAULT_PRINTED_TEXT, key) || typeof value !== "string" || value.length > 1000))) {
+    throw new Error("Invalid printed text in backup.");
   }
   if (data.design !== undefined) {
     for (const [key, value] of Object.entries(data.design)) {
@@ -1357,6 +1466,7 @@ function restoreSnapshot(snapshot) {
   tandoorRevision = data.tandoorRevision || 0;
   workbookRevision = data.workbookRevision || 0;
   designData = { ...DEFAULT_DESIGN, ...data.design };
+  printedText = loadPrintedText(data.printedText);
   applyDesign();
   render();
 }
@@ -1743,10 +1853,12 @@ function overflowingColumns() {
     };
     const available = 297 * 96 / 25.4 - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom) -
       outerHeight(page.querySelector(".page-header")) - outerHeight(page.querySelector(".page-footer"));
+    const headingHeight = page.querySelector(".printed-page-heading") ? outerHeight(page.querySelector(".printed-page-heading")) : 0;
+    const noteHeight = page.querySelector(".general-preparation-note") ? outerHeight(page.querySelector(".general-preparation-note")) : 0;
     page.querySelectorAll(".page-col").forEach((col, column) => {
       const needed = Array.from(col.children).reduce((height, section) => height + outerHeight(section), 0);
-      if (needed > available + 1) overflowing.push({
-        pageIndex, pageNumber: Number(page.id.slice(5)) + 1, column, excess: needed - available
+      if (needed > available - headingHeight - noteHeight + 1) overflowing.push({
+        pageIndex, pageNumber: Number(page.id.slice(5)) + 1, column, excess: needed - available + headingHeight + noteHeight
       });
     });
   });
@@ -1929,6 +2041,9 @@ function printMenu() {
 }
 
 // ---- Wire up events ----
+document.getElementById("printedContentBtn").addEventListener("click", () => openPrintedContent());
+document.getElementById("printedContentCancelBtn").addEventListener("click", () => document.getElementById("printedContentModal").classList.add("hidden"));
+document.getElementById("printedContentSaveBtn").addEventListener("click", savePrintedContent);
 document.getElementById("todayMenuBtn").addEventListener("click", () => showCatalog(true));
 document.getElementById("menuHomeBtn").addEventListener("click", () => showCatalog(false));
 document.getElementById("catalogPreviewBtn").addEventListener("click", togglePreview);

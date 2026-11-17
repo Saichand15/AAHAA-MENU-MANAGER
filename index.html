@@ -6,7 +6,7 @@
 <title>Aahaa Indian Kitchen - Menu Manager</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;900&family=Merriweather:wght@300;400;700&family=Playfair+Display:wght@500;700;900&family=Montserrat:wght@400;600;700;900&family=Oswald:wght@400;600;700&family=Raleway:wght@400;600;700&family=Cinzel:wght@500;700;900&family=Lora:wght@400;600;700&family=Open+Sans:wght@400;600;700&family=Roboto:wght@400;500;700&family=Nunito:wght@400;600;700&family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@400;500;700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=7">
+<link rel="stylesheet" href="style.css?v=8">
 <script src="assets/vendor/html2pdf.bundle.min.js"></script>
 </head>
 <body>
@@ -26,6 +26,7 @@
     <button id="addItemBtn" class="btn btn-outline manager-only">+ Add Item</button>
     <button id="addSectionBtn" class="btn btn-outline manager-only">+ Add Section</button>
     <button id="designBtn" class="btn btn-outline manager-only">🎨 Design</button>
+    <button id="printedContentBtn" class="btn btn-outline manager-only">Edit printed text</button>
     <button id="printBtn" class="btn btn-outline">🖨 Print</button>
     <button id="resetBtn" class="btn btn-ghost manager-only">Reset to Default</button>
     <button id="downloadBtn" class="btn btn-primary">⬇ Download PDF</button>
@@ -121,6 +122,10 @@
     <label id="customPrepTimeLabel" hidden>Custom preparation time (minutes)
       <input id="customPrepTime" type="text" inputmode="numeric" placeholder="e.g. 45 or 45-60" maxlength="7">
     </label>
+    <label>Preparation message for this item
+      <textarea id="itemPrepNote" rows="3" maxlength="1000" placeholder="Leave blank to use the standard preparation message"></textarea>
+    </label>
+    <p class="help">A custom message replaces the automatic note for this item and adds a star. Clear both the message and preparation time to remove the star.</p>
     <label>Spice Level
       <select id="itemSpice">
         <option value="">None</option>
@@ -309,6 +314,20 @@
   </div>
 </div>
 
+<div id="printedContentModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="printedContentTitle">
+  <div class="modal-box">
+    <h3 id="printedContentTitle">Edit printed text</h3>
+    <p class="help">Shared text applies to every page. Leave a field blank to hide its text. Item names and section headings can be changed with their Edit buttons.</p>
+    <label id="printedPageHeadingLabel" hidden>Printed heading for this page (optional)
+      <input id="printedPageHeading" type="text" maxlength="200">
+    </label>
+    <div id="printedTextFields"></div>
+    <div class="modal-actions">
+      <button id="printedContentCancelBtn" class="btn btn-light">Cancel</button>
+      <button id="printedContentSaveBtn" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
 <div id="savedVersionsModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="savedVersionsTitle">
   <div class="modal-box">
     <h3 id="savedVersionsTitle">Saved versions</h3>
@@ -322,6 +341,6 @@
 </div>
 <script src="assets/menu-catalog.js?v=1"></script>
 <script src="catalog.js?v=1"></script>
-<script src="script.js?v=7"></script>
+<script src="script.js?v=8"></script>
 </body>
 </html>

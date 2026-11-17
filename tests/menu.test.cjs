@@ -354,9 +354,9 @@ test("preparation notes use matching stars and follow moved items", () => {
   `);
   const sourceNotes = menu.run("preparationNotesHtml(menuData[0].items)");
   const destinationNotes = menu.run("preparationNotesHtml(menuData[1].items)");
-  assert.match(sourceNotes, /<strong>\*<\/strong> Preparation time: Maximum 20–30 minutes/);
+  assert.match(sourceNotes, /<strong>\*<\/strong> Preparation time approximately 20 to 30 minutes/);
   assert.doesNotMatch(sourceNotes, /30–40/);
-  assert.match(destinationNotes, /<strong>\*\*<\/strong> Preparation time: Maximum 30–40 minutes/);
+  assert.match(destinationNotes, /<strong>\*\*<\/strong> Preparation time approximately 30 to 40 minutes/);
   assert.equal(menu.run('prepTimeMarker({prepTime:"20-30"})'), "*");
   assert.equal(menu.run('prepTimeMarker({prepTime:"30-40"})'), "**");
   assert.equal(menu.run('prepTimeMarker({})'), "");
@@ -552,4 +552,85 @@ test("corrupt saved versions and storage errors are reported without overwriting
   menu.run('localStorage.setItem = () => { throw new Error("Storage full"); }');
   assert.equal(menu.run("saveMenu()"), false);
   assert.equal(menu.run("localStorage.getItem(STORAGE_KEY)===before"), true);
+});
+
+test("printed wording, page headings and item preparation messages persist through backup and history", () => {
+  const menu = movableMenu();
+  menu.run(`
+    saveMenu();
+    printedText.footer="Updated restaurant details";
+    printedText.preparation="Ready in {minutes} minutes.";
+    menuPages[0].heading="Today's specials";
+    menuData[0].items[0].prepTime="20-30";
+    menuData[0].items[1].prepNote="Freshly grilled; please allow extra time.";
+    saveMenu();
+    validateDocument(JSON.parse(documentSnapshot()));
+  `);
+  assert.match(menu.run("preparationNotesHtml(menuData[0].items)"), /Ready in 20 to 30 minutes/);
+  assert.match(menu.run("preparationNotesHtml(menuData[0].items)"), /B: Freshly grilled; please allow extra time/);
+  assert.equal(menu.run("prepTimeMarker(menuData[0].items[1])"), "*");
+  const reloaded = app(menu.json("JSON.parse(documentSnapshot())"));
+  assert.equal(reloaded.run("printedText.footer"), "Updated restaurant details");
+  assert.equal(reloaded.run("menuPages[0].heading"), "Today's specials");
+  assert.equal(reloaded.run("menuData[0].items[1].prepNote"), "Freshly grilled; please allow extra time.");
+  menu.run("travelHistory()");
+  assert.equal(menu.run("printedText.footer===DEFAULT_PRINTED_TEXT.footer"), true);
+  assert.equal(menu.run("menuPages[0].heading"), undefined);
+  menu.run("travelHistory(true)");
+  assert.equal(menu.run("printedText.footer"), "Updated restaurant details");
+});
+
+test("item preparation wording replaces only that item's automatic message", () => {
+  const menu = movableMenu();
+  menu.run('menuData[0].items[0].prepTime="30-40";menuData[0].items[0].prepNote="Please ask your server."');
+  const note = menu.run("preparationNotesHtml(menuData[0].items)");
+  assert.match(note, /<strong>\*\*<\/strong> A: Please ask your server/);
+  assert.doesNotMatch(note, /Maximum|30–40/);
+  menu.run('menuData[0].items[0].prepNote=""');
+  assert.match(menu.run("preparationNotesHtml(menuData[0].items)"), /approximately 30 to 40/);
+});
+
+test("older backups receive default printed text and malformed editable content is rejected", () => {
+  const menu = movableMenu();
+  const old = menu.json("JSON.parse(documentSnapshot())");
+  delete old.printedText;
+  assert.equal(app(old).run("printedText.legendTitle"), "Spice Level");
+  menu.run(`restoreSnapshot(${JSON.stringify(JSON.stringify(old))})`);
+  assert.equal(menu.run("printedText.preparation===DEFAULT_PRINTED_TEXT.preparation"), true);
+  for (const printedText of [null, [], { footer: 10 }, { unexpected: "text" }, { footer: "x".repeat(1001) }]) {
+    assert.throws(() => menu.run(`validateDocument(${JSON.stringify({ ...old, printedText })})`), /Invalid printed text/);
+  }
+  assert.throws(() => menu.run('menuPages[0].heading=12; validateDocument(JSON.parse(documentSnapshot()))'), /Invalid page heading/);
+  assert.throws(() => menu.run('delete menuPages[0].heading; menuData[0].items[0].prepNote=12; validateDocument(JSON.parse(documentSnapshot()))'), /Invalid item/);
+});
+
+test("printed content form saves shared text and only the selected page heading", () => {
+  const menu = movableMenu();
+  menu.run(`
+    editingPrintedPageId=menuPages[0].id;
+    for (const key of Object.keys(DEFAULT_PRINTED_TEXT)) {
+      document.getElementById("printed-"+key).value=DEFAULT_PRINTED_TEXT[key];
+    }
+    document.getElementById("printed-footer").value=" New contact details ";
+    document.getElementById("printedPageHeading").value=" Chef specials ";
+    savePrintedContent();
+  `);
+  assert.equal(menu.run("printedText.footer"), "New contact details");
+  assert.equal(menu.run("menuPages[0].heading"), "Chef specials");
+  assert.equal(menu.run("menuPages[1].heading"), undefined);
+  assert.equal(app(menu.json("JSON.parse(documentSnapshot())")).run("printedText.footer"), "New contact details");
+  menu.run('document.getElementById("printed-footer").value="x".repeat(1001); savePrintedContent()');
+  assert.equal(menu.run("printedText.footer"), "New contact details");
+  assert.match(menu.alerts.at(-1), /1,000 characters/);
+});
+
+test("updated preparation wording upgrades old defaults without replacing custom wording", () => {
+  const menu = movableMenu();
+  assert.equal(menu.run("printedText.generalPreparation"), "Please allow approximately 10–15 minutes for all other items. Preparation times may vary during busy periods.");
+  assert.equal(menu.run('loadPrintedText({generalPreparation:"Note: All other items preparation time approximately 10 to 15 minutes based on timing."}).generalPreparation===DEFAULT_PRINTED_TEXT.generalPreparation'), true);
+  assert.equal(menu.run('loadPrintedText({generalPreparation:"Please ask your server."}).generalPreparation'), "Please ask your server.");
+  assert.equal(menu.run('loadPrintedText({preparation:"Preparation time: Maximum {minutes} minutes from the time the order is placed."}).preparation'),
+    "Preparation time approximately {minutes} minutes");
+  assert.equal(menu.run('loadPrintedText({preparation:"Ask your server about timing."}).preparation'), "Ask your server about timing.");
+  assert.equal(menu.run('loadPrintedText({preparation:"Custom wording",generalPreparation:""}).generalPreparation'), "");
 });

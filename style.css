@@ -369,6 +369,22 @@ body {
 }
 .preparation-notes p { margin: 0; }
 .preparation-notes p + p { margin-top: 5px; }
+.general-preparation-note {
+  margin: 8px 0; color: #5a3a24; font: 11px/1.5 var(--heading-font);
+  text-align: center; width: 100%; padding: 0 12px;
+  white-space: pre-line; overflow-wrap: anywhere;
+}
+.preparation-notes p { white-space: pre-line; overflow-wrap: anywhere; }
+.preparation-edit-tools { margin-top: 6px; }
+.preparation-edit-tools summary { cursor: pointer; font-weight: 600; }
+.preparation-edit-tools .btn { display: block; margin-top: 6px; text-align: left; }
+.printed-page-heading {
+  margin: 0 0 16px; text-align: center; color: var(--accent);
+  font: 700 24px/1.3 var(--heading-font); overflow-wrap: anywhere;
+}
+.page-footer, .page-tagline, .legend-title, .legend-item { overflow-wrap: anywhere; white-space: pre-line; }
+.page-tools .btn { margin-left: 10px; font-size: 11px; }
+#printedTextFields textarea, #itemPrepNote { font: 13px/1.6 var(--heading-font); white-space: pre-wrap; }
 .item .name .veg-icon,
 .item .name .nonveg-icon { margin-left: 2px; }
 .item .price {
