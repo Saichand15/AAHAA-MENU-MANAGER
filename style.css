@@ -369,6 +369,14 @@ body {
 }
 .preparation-notes p { margin: 0; }
 .preparation-notes p + p { margin-top: 5px; }
+.page-preparation-notes {
+  text-align: center; margin-bottom: 9px; flex-shrink: 0;
+  padding: 5px 8px; line-height: 1.35; color: #111; font-weight: 600;
+}
+.page-preparation-notes p + p { margin-top: 2px; }
+.page-preparation-notes .general-preparation-note {
+  margin: 2px 0 0; padding: 0; line-height: inherit; color: inherit; font-weight: inherit;
+}
 .general-preparation-note {
   margin: 8px 0; color: #5a3a24; font: 11px/1.5 var(--heading-font);
   text-align: center; width: 100%; padding: 0 12px;

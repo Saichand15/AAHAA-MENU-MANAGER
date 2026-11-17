@@ -634,3 +634,17 @@ test("updated preparation wording upgrades old defaults without replacing custom
   assert.equal(menu.run('loadPrintedText({preparation:"Ask your server about timing."}).preparation'), "Ask your server about timing.");
   assert.equal(menu.run('loadPrintedText({preparation:"Custom wording",generalPreparation:""}).generalPreparation'), "");
 });
+
+test("every page preparation block includes both star explanations and the general note", () => {
+  const menu = movableMenu();
+  const notes = menu.run("pagePreparationNotesHtml([])");
+  assert.match(notes, /<strong>\*<\/strong> Preparation time approximately 20 to 30 minutes/);
+  assert.match(notes, /<strong>\*\*<\/strong> Preparation time approximately 30 to 40 minutes/);
+  assert.match(notes, /Please allow approximately 10–15 minutes for all other items/);
+  assert.ok(notes.indexOf("<strong>**</strong>") < notes.indexOf("<strong>*</strong>"));
+  assert.ok(notes.indexOf("<strong>*</strong>") < notes.indexOf("general-preparation-note"));
+  assert.equal((notes.match(/<p(?: |>|$)/g) || []).length, 3);
+  menu.run('menuData[0].items[0].prepNote="Freshly grilled."');
+  assert.match(menu.run("pagePreparationNotesHtml(menuData[0].items)"), /A: Freshly grilled/);
+  assert.doesNotMatch(menu.run("pagePreparationNotesHtml(menuData[1].items)"), /Freshly grilled/);
+});

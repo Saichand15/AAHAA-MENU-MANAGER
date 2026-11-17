@@ -814,10 +814,10 @@ function validPrepTime(value) {
   return maximum === undefined || maximum >= minimum;
 }
 
-function preparationNotesHtml(items) {
+function preparationNotesHtml(items, everyPage = false) {
   const automatic = items.filter(item => !item.prepNote);
   const times = new Set(automatic.map(item => item.prepTime));
-  const standard = ["20-30", "30-40"].filter(time => times.has(time)).map(time =>
+  const standard = ["30-40", "20-30"].filter(time => everyPage || times.has(time)).map(time =>
     `<p><strong>${prepTimeMarker({ prepTime: time })}</strong> ${escapeHtml(printedText.preparation.replaceAll("{minutes}", time.replace("-", " to ")))}</p>`
   ).join("");
   const custom = [...times].filter(time => time && !["20-30", "30-40"].includes(time)).map(time =>
@@ -825,6 +825,11 @@ function preparationNotesHtml(items) {
   ).join("");
   return standard + custom + items.filter(item => item.prepNote).map(item =>
     `<p><strong>${prepTimeMarker(item)}</strong> ${escapeHtml(item.name)}: ${escapeHtml(item.prepNote)}</p>`).join("");
+}
+
+function pagePreparationNotesHtml(items) {
+  return preparationNotesHtml(items, true) +
+    (printedText.generalPreparation ? `<p class="general-preparation-note">${escapeHtml(printedText.generalPreparation)}</p>` : "");
 }
 
 function openPrintedContent(pageIndex) {
@@ -979,7 +984,7 @@ function render() {
       </div>
       ${page.heading ? `<h1 class="printed-page-heading">${escapeHtml(page.heading)}</h1>` : ""}
       <div class="page-body${colsPerPage === 1 ? " single-col" : ""}"></div>
-      ${printedText.generalPreparation ? `<p class="general-preparation-note">${escapeHtml(printedText.generalPreparation)}</p>` : ""}
+      <aside class="preparation-notes page-preparation-notes" aria-label="Preparation times">${pagePreparationNotesHtml(page.cols.flatMap(chunks => chunks.flatMap(chunk => chunk.items.map(ref => ref.item))))}</aside>
       <div class="page-footer">${escapeHtml(printedText.footer)}</div>
     `;
 
@@ -1053,32 +1058,6 @@ function render() {
             ${item.desc ? `<div class="item-desc">${escapeHtml(item.desc)}</div>` : ""}`;
           sectionDiv.appendChild(row);
         });
-        const notesHtml = preparationNotesHtml(chunk.items.map(ref => ref.item));
-        if (notesHtml) {
-          const notes = document.createElement("aside");
-          notes.className = "preparation-notes";
-          notes.setAttribute("aria-label", "Preparation times");
-          notes.innerHTML = notesHtml;
-          const noteTools = document.createElement("details");
-          noteTools.className = "preparation-edit-tools manager-only";
-          const noteSummary = document.createElement("summary");
-          noteSummary.textContent = "Edit preparation info";
-          noteTools.appendChild(noteSummary);
-          const editWording = document.createElement("button");
-          editWording.className = "btn btn-light";
-          editWording.textContent = "Edit preparation wording";
-          editWording.addEventListener("click", () => openPrintedContent());
-          noteTools.appendChild(editWording);
-          chunk.items.filter(ref => prepTimeMarker(ref.item)).forEach(ref => {
-            const editItem = document.createElement("button");
-            editItem.className = "btn btn-light";
-            editItem.textContent = `Edit ${ref.item.name} note`;
-            editItem.addEventListener("click", () => openItemModal(chunk.sectionIndex, ref.itemIdx));
-            noteTools.appendChild(editItem);
-          });
-          notes.appendChild(noteTools);
-          sectionDiv.appendChild(notes);
-        }
         colEl.appendChild(sectionDiv);
       });
 
@@ -1090,6 +1069,26 @@ function render() {
       }
     });
 
+    const noteTools = document.createElement("details");
+    noteTools.className = "preparation-edit-tools manager-only";
+    const noteSummary = document.createElement("summary");
+    noteSummary.textContent = "Edit preparation info";
+    noteTools.appendChild(noteSummary);
+    const editWording = document.createElement("button");
+    editWording.className = "btn btn-light";
+    editWording.textContent = "Edit preparation wording";
+    editWording.addEventListener("click", () => openPrintedContent());
+    noteTools.appendChild(editWording);
+    page.cols.flatMap(chunks => chunks).forEach(chunk => {
+      chunk.items.filter(ref => prepTimeMarker(ref.item)).forEach(ref => {
+        const editItem = document.createElement("button");
+        editItem.className = "btn btn-light";
+        editItem.textContent = `Edit ${ref.item.name} note`;
+        editItem.addEventListener("click", () => openItemModal(chunk.sectionIndex, ref.itemIdx));
+        noteTools.appendChild(editItem);
+      });
+    });
+    pageEl.querySelector(".page-preparation-notes").appendChild(noteTools);
     container.appendChild(pageEl);
   });
 
@@ -1854,7 +1853,7 @@ function overflowingColumns() {
     const available = 297 * 96 / 25.4 - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom) -
       outerHeight(page.querySelector(".page-header")) - outerHeight(page.querySelector(".page-footer"));
     const headingHeight = page.querySelector(".printed-page-heading") ? outerHeight(page.querySelector(".printed-page-heading")) : 0;
-    const noteHeight = page.querySelector(".general-preparation-note") ? outerHeight(page.querySelector(".general-preparation-note")) : 0;
+    const noteHeight = outerHeight(page.querySelector(".page-preparation-notes"));
     page.querySelectorAll(".page-col").forEach((col, column) => {
       const needed = Array.from(col.children).reduce((height, section) => height + outerHeight(section), 0);
       if (needed > available - headingHeight - noteHeight + 1) overflowing.push({
