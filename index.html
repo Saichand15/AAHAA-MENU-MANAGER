@@ -6,7 +6,7 @@
 <title>Aahaa Indian Kitchen - Menu Manager</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;900&family=Merriweather:wght@300;400;700&family=Playfair+Display:wght@500;700;900&family=Montserrat:wght@400;600;700;900&family=Oswald:wght@400;600;700&family=Raleway:wght@400;600;700&family=Cinzel:wght@500;700;900&family=Lora:wght@400;600;700&family=Open+Sans:wght@400;600;700&family=Roboto:wght@400;500;700&family=Nunito:wght@400;600;700&family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@400;500;700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=8">
+<link rel="stylesheet" href="style.css?v=9">
 <script src="assets/vendor/html2pdf.bundle.min.js"></script>
 </head>
 <body>
@@ -33,7 +33,7 @@
     <details id="moreOptions" class="more-options manager-only">
       <summary class="btn btn-outline">More options</summary>
       <div class="more-options-panel">
-        <p class="more-options-note">Manager workspace &middot; saved in this browser only</p>
+        <p class="more-options-note">Local recovery copies are kept in this browser. Use Save shared menu to save across laptops.</p>
         <div class="history-actions">
           <button id="undoBtn" class="btn btn-light">Undo</button>
           <button id="redoBtn" class="btn btn-light">Redo</button>
@@ -48,6 +48,25 @@
       </div>
     </details>
   </div>
+</div>
+
+<div class="cloud-bar manager-only">
+  <span id="cloudStatus" role="status">Sign in to load the shared menu</span>
+  <button id="cloudSaveBtn" class="btn btn-primary">Save shared menu</button>
+  <button id="cloudLoadBtn" class="btn btn-light">Load shared menu</button>
+  <span id="cloudAccount"></span>
+  <button id="cloudSignOutBtn" class="btn btn-light">Sign out</button>
+</div>
+<div id="cloudGate" class="cloud-gate">
+  <form id="cloudSignInForm" class="modal-box">
+    <h2>Manager sign in</h2>
+    <p>Sign in to manage the shared restaurant menu. Only approved managers can access it.</p>
+    <label>Email<input id="cloudEmail" type="email" autocomplete="username" required></label>
+    <label>Password<input id="cloudPassword" type="password" autocomplete="current-password" required></label>
+    <p id="cloudError" role="alert"></p>
+    <button id="cloudSignInBtn" type="submit" class="btn btn-primary">Sign in</button>
+    <p class="help">First-time setup requires the owner to configure shared storage and create manager accounts.</p>
+  </form>
 </div>
 
 <main id="catalogView" class="manager-only" hidden aria-labelledby="catalogTitle">
@@ -341,6 +360,8 @@
 </div>
 <script src="assets/menu-catalog.js?v=1"></script>
 <script src="catalog.js?v=1"></script>
-<script src="script.js?v=8"></script>
+<script src="script.js?v=9"></script>
+<script src="cloud-config.js?v=1"></script>
+<script src="cloud.js?v=1"></script>
 </body>
 </html>

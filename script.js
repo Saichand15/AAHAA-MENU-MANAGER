@@ -518,7 +518,7 @@ function restoreSavedVersion() {
     restoreSnapshot(version.snapshot);
     lastSavedSnapshot = version.snapshot;
     saveDesign();
-    document.getElementById("saveStatus").textContent = "Saved in this browser";
+    document.getElementById("saveStatus").textContent = "Local recovery copy saved";
     document.getElementById("savedVersionsModal").classList.add("hidden");
   } catch (error) {
     console.error("Could not restore saved version", error);
@@ -546,8 +546,9 @@ function saveMenu() {
     redoHistory = [];
   }
   lastSavedSnapshot = snapshot;
-  document.getElementById("saveStatus").textContent = "Saved in this browser";
+  document.getElementById("saveStatus").textContent = "Local recovery copy saved";
   updateHistoryButtons();
+  if (typeof cloudMenu !== "undefined") cloudMenu.changed();
   return true;
 }
 
@@ -1445,6 +1446,7 @@ function validateDocument(data) {
 }
 
 function requireManager() {
+  if (typeof cloudMenu !== "undefined" && !cloudMenu.canEdit()) return false;
   if (!customerPreview && !document.body.classList.contains("pdf-export")) return true;
   alert("Return to the manager workspace to edit the menu.");
   return false;
@@ -1468,6 +1470,7 @@ function restoreSnapshot(snapshot) {
   printedText = loadPrintedText(data.printedText);
   applyDesign();
   render();
+  if (typeof cloudMenu !== "undefined") cloudMenu.changed();
 }
 
 function travelHistory(redo = false) {
@@ -1832,6 +1835,7 @@ async function restoreBackup(event) {
 }
 
 function togglePreview() {
+  if (typeof cloudMenu !== "undefined" && !cloudMenu.canEdit()) return;
   if (!customerPreview && document.body.classList.contains("catalog-view")) showCatalog(false);
   customerPreview = !customerPreview;
   document.body.classList.toggle("customer-preview", customerPreview);
@@ -1960,6 +1964,7 @@ async function waitForCaptureReadiness() {
 }
 
 async function downloadPDF() {
+  if (typeof cloudMenu !== "undefined" && !cloudMenu.canEdit()) return;
   if (!menuData.some(section => section.items.some(item => item.available !== false && itemHasPrice(item)))) {
     alert("Enable at least one priced item in Today's Menu before exporting.");
     return;
@@ -2031,6 +2036,7 @@ async function downloadPDF() {
 }
 
 function printMenu() {
+  if (typeof cloudMenu !== "undefined" && !cloudMenu.canEdit()) return;
   if (!menuData.some(section => section.items.some(item => item.available !== false && itemHasPrice(item)))) {
     alert("Enable at least one priced item in Today's Menu before printing.");
     return;
@@ -2184,6 +2190,7 @@ render();
 saveMenu();
 if (needsBiryaniUpdate || needsBiryaniLayout || needsTandoorUpdate || needsWorkbookUpdate) {
   waitForCaptureReadiness().then(() => {
+    if (typeof cloudMenu !== "undefined" && !cloudMenu.isReady()) return;
     fitPages();
   }).catch(error => {
     console.error("Could not fit the updated menu", error);

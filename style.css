@@ -21,6 +21,17 @@ body {
   margin: 0;
   padding: 0;
 }
+.cloud-bar {
+  display: flex; align-items: center; justify-content: center; flex-wrap: wrap;
+  gap: 10px; padding: 12px; background: #fff4d8; font: 12px/1.5 var(--heading-font);
+}
+.cloud-gate {
+  position: fixed; inset: 0; z-index: 1000; background: #20170ff5;
+  display: flex; justify-content: center; align-items: center; padding: 20px; overflow: auto;
+}
+.cloud-gate .modal-box { margin: auto; }
+#cloudError { color: #a12020; white-space: pre-wrap; }
+@media print { .cloud-gate { display: none !important; } }
 
 /* ===== Toolbar ===== */
 .toolbar {

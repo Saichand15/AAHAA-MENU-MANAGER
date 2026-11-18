@@ -1,10 +1,31 @@
 # Aahaa Menu Manager
 
-Static, browser-local restaurant menu editor. Open `index.html` in a browser, or serve this folder with a static web server. Netlify publishes this folder directly.
+Restaurant menu editor with Supabase-backed shared storage and approved-manager sign-in. Serve this folder with a static web server. Netlify publishes this folder directly. Complete the setup below before using manager sign-in.
+
+## Shared storage setup (required)
+
+1. In Supabase, open the project matching the public Project URL in `cloud-config.js`. If the provided project does not exist or is not yours, create one and replace the URL and publishable key. These two values are public settings, not secrets. Never put a service-role key in the app.
+2. Run `supabase/setup.sql` once in the project's SQL editor. It creates the approval table, shared menu, row-level policies and revision-checked save function.
+3. In **Authentication > Users**, create/invite each manager. Managers need an active account with a password to use this app. Disable public signups in Authentication settings; the app has no signup page.
+4. Approve each manager using their Authentication user UUID in the SQL editor:
+   ```sql
+   insert into public.menu_managers (user_id)
+   values ('REPLACE_WITH_AUTHENTICATION_USER_UUID')
+   on conflict do nothing;
+   ```
+   Removing that row revokes menu access. Do not grant browser clients permission to edit approvals.
+5. On the laptop containing the latest correct menu, **Download Backup** before deploying the upgrade. Sign in after deployment. If no shared menu exists, the local menu is kept; restore the correct backup if necessary and click **Save shared menu** once to initialize central data.
+6. On another laptop, open the same deployed site and sign in as an approved manager. It loads the shared menu automatically.
+
+**Save shared menu** is the explicit central save action. Editing saves a local recovery copy and shows an unsynced warning until central save succeeds. **Load shared menu** retrieves the newest central copy; back up local changes before replacing them. The shared menu includes prices, availability, pages, design, printed text and preparation notes. PDF files are regenerated from this data, not stored centrally.
+
+Two managers cannot silently overwrite one another: a save based on an older server revision is rejected. Download a backup of local edits, load the newest shared menu, then reapply the desired changes. Pending local changes can be resumed after refresh; a stale revision still cannot overwrite a newer menu. Saved versions and downloaded backups remain local recovery tools, not shared history.
+
+The login gate does not replace database security: the supplied SQL enforces manager approval server-side. Local preview and deployment use the same configured database. Setup and live cross-device verification must be completed in the Supabase project; unit tests use mocked responses and do not provision it.
 
 ## Daily menu updates
 
-Backup, import, Undo/Redo, and browser-saving status are grouped under **More options** in the top toolbar.
+Backup, import, Undo/Redo, and local recovery status are grouped under **More options** in the top toolbar. Shared save/load status is shown separately.
 
 - **Today's Menu** opens the complete menu in its own tab/view (bookmark `#today-menu`). **Menu Layout** returns to the printable home menu.
 - Search by name and filter by section, enabled/disabled, or missing price. Toggle individual items or enable/disable only the filtered results. Changes immediately affect the home layout, customer preview, print, and PDF.
@@ -27,15 +48,15 @@ Backup, import, Undo/Redo, and browser-saving status are grouped under **More op
 - **Edit printed text** changes the shared legend heading and labels, logo tagline, footer, biryani subtitle, and preparation wording. `{minutes}` and `{items}` insert the relevant values in preparation messages. Blank fields hide their text; symbols remain unchanged.
 - Each page's **Edit heading, legend & footer** button also offers an optional customer-facing page heading. Section and item headings remain editable through their existing **Edit** controls. Printed text, headings and individual messages are included in backups, saved versions, and Undo/Redo, including older-backup compatibility.
 - **More options > Saved versions** keeps the last 10 prior menu states across refreshes in the same browser. Restore a version to view it and download its PDF or JSON backup; the current version is preserved before restoring. Versions include item availability, prices, pages, preparation notes, and design. These are menu data snapshots, not stored PDF files.
-- Browser data is not cloud storage: clearing site data removes the menu and saved versions. Use **Download Backup** regularly for an external copy.
+- Clearing site data removes local drafts and saved versions, but not a successfully saved shared menu. Sign in again to load the central copy. Use **Download Backup** regularly for an external copy.
 - **Pre-update Backup** downloads the latest preserved menu from before the workbook catalog update (or the earlier Tandoor/biryani update if none exists).
 - Page titles in **Pages & Move** are workspace labels, separate from optional printed page headings and section headings.
 
 ## Customer view and printing
 
-**Customer Preview** hides editing controls. It is not authentication; this remains a manager-only tool without a login or backend. Do not treat a public deployment as an access-controlled admin system.
+**Customer Preview** hides editing controls inside the signed-in workspace. It is not a public customer link. Approved manager sign-in is required to load or save shared menu data.
 
-Edits are saved only in the current browser and site origin, not to GitHub or other devices. Download backups regularly, especially before clearing browser data or switching devices. Source changes must be deployed separately to update the hosted site.
+Edits are saved locally until **Save shared menu** succeeds, then available to approved managers on other devices. Nothing is saved to GitHub by menu edits. Download backups regularly, especially before clearing browser data or switching devices. Source changes must be deployed separately to update the hosted site.
 
 Pages retain manual placement rather than silently reflowing after edits. An A4 overflow warning offers **Auto-fit pages**, which moves trailing items forward and adds pages as needed. Resolve overflow before exporting; PDF/Print buttons block oversized content to avoid clipping. Browser-native printing can bypass these checks, so use the app's Print button. Check print preview after changing fonts or layout. Blank pages are intentionally included.
 
@@ -55,5 +76,6 @@ Run the dependency-free tests with:
 
 ```powershell
 node --test .\tests\menu.test.cjs
+node --test .\tests\cloud.test.cjs
 node --check .\script.js
 ```
