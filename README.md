@@ -60,7 +60,7 @@ Backup, import, Undo/Redo, and local recovery status are grouped under **More op
 
 Edits are saved locally until **Save shared menu** succeeds, then available to approved managers on other devices. Nothing is saved to GitHub by menu edits. Download backups regularly, especially before clearing browser data or switching devices. Source changes must be deployed separately to update the hosted site.
 
-Pages retain manual placement rather than silently reflowing after edits. An A4 overflow warning offers **Auto-fit pages**, which moves trailing items forward and adds pages as needed. Resolve overflow before exporting; PDF/Print buttons block oversized content to avoid clipping. Browser-native printing can bypass these checks, so use the app's Print button. Check print preview after changing fonts or layout. Blank pages are intentionally included.
+Pages retain manual placement rather than silently reflowing after edits. An A4 overflow warning offers **Auto-fit pages**, which moves trailing items forward and adds pages as needed. Resolve overflow before exporting; PDF/Print buttons block oversized content to avoid clipping. The top of each printed or exported page shows **Page X of Y**, counting only the pages included in the output. Browser-native printing can bypass the overflow checks, so use the app's Print button. Check print preview after changing fonts or layout. Blank pages are intentionally included.
 
 ## Excel catalog and prices
 

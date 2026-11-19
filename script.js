@@ -962,6 +962,7 @@ function render() {
         <span class="corner bl">❖</span>
         <span class="corner br">❖</span>
       </div>
+      <div class="page-folio">Page ${pageIdx + 1} of ${pages.length}</div>
       <div class="page-header">
         <div class="page-legend">
           <div class="legend-title">${escapeHtml(printedText.legendTitle)}</div>

@@ -185,6 +185,17 @@ body {
 .page-frame .corner.bl { bottom: -8px; left: -8px; }
 .page-frame .corner.br { bottom: -8px; right: -8px; }
 
+.page-folio {
+  position: absolute;
+  top: 8mm;
+  left: 14mm;
+  right: 14mm;
+  color: #5a3a24;
+  font: 600 10px/1.2 var(--heading-font);
+  text-align: center;
+  pointer-events: none;
+}
+
 .page-header {
   display: flex;
   justify-content: space-between;
@@ -754,6 +765,7 @@ body.measure-layout .legend-row { gap: 14px; flex-wrap: nowrap; }
   .btn { padding: 8px 10px; font-size: 11px; }
   .board-columns { flex-direction: column; }
   .page { padding: 10mm 8mm; }
+  body:not(.pdf-export):not(.measure-layout) .page-folio { top: 7mm; }
   .page-body { gap: 10px; }
   .page-logo { height: 65px; }
   .legend-row { gap: 5px; flex-wrap: wrap; }
