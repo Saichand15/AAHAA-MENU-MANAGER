@@ -147,13 +147,13 @@ const cloudMenu = (() => {
   }
 
   async function save() {
-    if (!canEdit()) return;
+    if (!canEdit()) return false;
     const snapshot = documentSnapshot();
-    validateDocument(JSON.parse(snapshot));
     busy = true;
     let saved = false;
     status("Saving shared menu...");
     try {
+      validateDocument(JSON.parse(snapshot));
       const rows = await request("rpc/save_shared_menu", {
         expected_revision: revision, menu_document: JSON.parse(snapshot)
       });
@@ -168,6 +168,7 @@ const cloudMenu = (() => {
       // Do not replace an explicit failure with a success-looking status.
       if (saved) changed();
     }
+    return saved;
   }
 
   async function reload() {
@@ -184,7 +185,11 @@ const cloudMenu = (() => {
 
   async function signOut() {
     if (busy) return;
-    if (ready && documentSnapshot() !== sharedSnapshot && !confirm("There are changes not saved centrally. Sign out anyway? Download a backup first.")) return;
+    if (ready && documentSnapshot() !== sharedSnapshot) {
+      if (!confirm("Save this menu to Supabase before signing out? Choose Cancel to stay signed in.")) return;
+      if (!(await save()) || documentSnapshot() !== sharedSnapshot) return;
+    }
+    busy = true;
     try {
       if (session) {
         await responseData(await fetch(`${CLOUD_CONFIG.url}/auth/v1/logout`, {
@@ -192,13 +197,17 @@ const cloudMenu = (() => {
           headers: { apikey: CLOUD_CONFIG.publicKey, Authorization: `Bearer ${session.access_token}` }
         }));
       }
-    } catch (error) { report(error); }
-    ready = false;
-    localStorage.removeItem(sessionKey);
-    session = null;
-    lockWorkspace(true);
-    document.getElementById("cloudAccount").textContent = "";
-    status("Sign in to load the shared menu");
+    } catch (error) {
+      console.error("Could not end the remote session", error.message);
+    } finally {
+      busy = false;
+      ready = false;
+      localStorage.removeItem(sessionKey);
+      session = null;
+      lockWorkspace(true);
+      document.getElementById("cloudAccount").textContent = "";
+      status("Sign in to load the shared menu");
+    }
   }
 
   async function start() {

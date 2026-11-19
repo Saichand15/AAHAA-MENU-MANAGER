@@ -77,6 +77,33 @@ test("unapproved accounts cannot open or save the manager workspace", async () =
   assert.equal(menu.server(), null);
 });
 
+test("sign-out saves pending changes and the next login loads them", async () => {
+  const menu = app();
+  await menu.start();
+  await menu.signIn();
+  menu.edit("Manager edits");
+  await menu.node("cloudSignOutBtn").handlers.click();
+  assert.equal(menu.server().document.pages[0].title, "Manager edits");
+  assert.equal(menu.node("cloudGate").hidden, false);
+  assert.equal(menu.storage.has("aahaaPendingSharedMenu:manager"), false);
+  await menu.signIn();
+  assert.equal(menu.value().pages[0].title, "Manager edits");
+  assert.equal(menu.node("cloudSaveBtn").disabled, true);
+});
+
+test("a failed save prevents sign-out and keeps the local draft", async () => {
+  const menu = app();
+  await menu.start();
+  await menu.signIn();
+  menu.edit("Offline edits");
+  menu.setOffline(true);
+  await menu.node("cloudSignOutBtn").handlers.click();
+  assert.equal(menu.server(), null);
+  assert.equal(menu.node("cloudGate").hidden, true);
+  assert.ok(menu.storage.has("aahaaPendingSharedMenu:manager"));
+  assert.match(menu.node("cloudStatus").textContent, /Not synced/);
+});
+
 test("first shared save preserves the complete menu for another laptop", async () => {
   const first = app();
   await first.start();

@@ -1001,18 +1001,28 @@ function render() {
       colEl.className = "page-col";
       wireDropTarget(colEl, { pageId: page.id, column: colIdx });
 
+      const sectionPortionLabels = chunk => [...new Set(chunk.items.flatMap(ref =>
+        (ref.item.portions || []).map(portion => portion.label)))];
+      const biryaniChunk = featured && colChunks.find(chunk => chunk.name.trim().toLowerCase() === "biryani");
+      const biryaniLabels = biryaniChunk ? sectionPortionLabels(biryaniChunk) : [];
+      const jumboColumn = biryaniLabels.findIndex(label => label.trim().toLowerCase() === "jumbo") + 1;
       colChunks.forEach(chunk => {
         const sectionDiv = document.createElement("div");
-        const portionLabels = featured ? [...new Set(chunk.items.flatMap(ref =>
-          (ref.item.portions || []).map(portion => portion.label)))] : [];
-        if (portionLabels.length) sectionDiv.style.setProperty("--portion-count", portionLabels.length);
-        sectionDiv.className = "section" + (chunk.continued ? " section-continued" : "");
+        const portionLabels = featured ? sectionPortionLabels(chunk) : [];
+        const extras = featured && chunk.name.trim().toLowerCase() === "extras";
+        const alignExtra = extras && portionLabels.length === 1;
+        if (portionLabels.length) sectionDiv.style.setProperty("--portion-count",
+          alignExtra ? biryaniLabels.length || 4 : portionLabels.length);
+        if (alignExtra) sectionDiv.style.setProperty("--extra-column", jumboColumn || -2);
+        sectionDiv.className = "section" + (chunk.continued ? " section-continued" : "") +
+          (alignExtra ? " biryani-extras" : "");
         sectionDiv.dataset.sectionIndex = chunk.sectionIndex;
         if (!chunk.items.some(ref => ref.item.available !== false)) sectionDiv.classList.add("empty-for-customers");
         wireDropTarget(sectionDiv, { pageId: page.id, column: colIdx, sectionIndex: chunk.sectionIndex });
 
+        let head;
         if (!chunk.continued) {
-          const head = document.createElement("div");
+          head = document.createElement("div");
           head.className = "section-head";
           head.innerHTML = `<h2>${escapeHtml(chunk.name)}</h2>
             <span class="section-controls manager-only">
@@ -1026,12 +1036,13 @@ function render() {
           const flourish = document.createElement("div");
           flourish.className = "section-flourish " + (designData.headerStyle || "fl-diamond");
           flourish.innerHTML = flourishHtml(designData.headerStyle);
-          sectionDiv.appendChild(flourish);
+          if (!alignExtra) sectionDiv.appendChild(flourish);
         }
         if (featured && portionLabels.length) {
           const priceHeader = document.createElement("div");
           priceHeader.className = "featured-price-header";
           priceHeader.innerHTML = `<span>${escapeHtml(chunk.name.trim().toLowerCase() === "biryani" ? printedText.biryaniSubtitle : "")}</span><div>${portionLabels.map(label => `<span>${escapeHtml(label)}</span>`).join("")}</div>`;
+          if (alignExtra && head) priceHeader.firstElementChild.replaceWith(head);
           sectionDiv.appendChild(priceHeader);
         }
 

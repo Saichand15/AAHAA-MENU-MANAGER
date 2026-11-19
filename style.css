@@ -259,7 +259,7 @@ body {
   letter-spacing: 2px;
   text-transform: uppercase;
   text-align: center;
-  margin-top: 2px;
+  margin-top: -7px;
 }
 
 .page-body { display: flex; gap: 20px; flex: 1; align-items: stretch; }
@@ -368,6 +368,7 @@ body {
 .item .name {
   flex: 1;
   min-width: 0;
+  overflow-wrap: anywhere;
   font-weight: var(--item-name-weight);
 }
 .item .name .spice { white-space: nowrap; color: #c81d11; filter: saturate(1.4); }
@@ -414,6 +415,12 @@ body {
   font-size: calc(var(--item-font-size) - 1px);
   flex-shrink: 0;
   padding-top: 1px;
+}
+.page-body:not(.single-col) .item .price {
+  max-width: 48%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: right;
 }
 .item-desc {
   font-size: calc(var(--item-font-size) - 4px);
@@ -668,7 +675,7 @@ body.pdf-export #catalogView { display: none !important; }
   font: 11px var(--heading-font); font-weight: 600; margin-bottom: 4px;
   overflow-wrap: anywhere;
 }
-.featured-price-header > div, .featured-biryani .portion-prices {
+.featured-price-header > div:last-child, .featured-biryani .portion-prices {
   display: grid; grid-template-columns: repeat(var(--portion-count), minmax(0, 1fr)); gap: 4px;
   text-align: center;
 }
@@ -686,6 +693,10 @@ body.pdf-export #catalogView { display: none !important; }
 }
 .featured-biryani .item-desc, .featured-biryani .availability-label { grid-column: 1 / -1; }
 .featured-biryani .item-desc { margin-top: 0; overflow-wrap: anywhere; }
+.featured-biryani .biryani-extras .section-head { justify-content: flex-start; margin: 0; }
+.featured-biryani .biryani-extras h2 { font-size: inherit; letter-spacing: 1px; padding: 0; }
+.biryani-extras .featured-price-header > div:last-child > span,
+.biryani-extras .portion-prices > div { grid-column: var(--extra-column); }
 .availability-label { color: #9c2828; font: 10px 'Poppins', sans-serif; }
 .unavailable { opacity: .6; }
 .modal-box { width: min(560px, 94vw); }
