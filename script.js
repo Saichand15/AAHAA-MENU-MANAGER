@@ -948,11 +948,8 @@ function render() {
   pages.forEach((page, pageIdx) => {
     const colsPerPage = pageColumnCount(page.id);
     const featured = page.layout === "biryani";
-    const portionLabels = [...new Set(page.cols.flatMap(chunks => chunks.flatMap(chunk =>
-      chunk.items.flatMap(ref => (ref.item.portions || []).map(portion => portion.label)))))];
     const pageEl = document.createElement("div");
     pageEl.className = "page" + (featured ? " featured-biryani" : "");
-    if (featured) pageEl.style.setProperty("--portion-count", Math.max(1, portionLabels.length));
     pageEl.id = `page-${pageIdx}`;
     pageEl.dataset.pageId = page.id;
     pageEl.dataset.sourcePageIndex = menuPages.findIndex(entry => entry.id === page.id);
@@ -1006,6 +1003,9 @@ function render() {
 
       colChunks.forEach(chunk => {
         const sectionDiv = document.createElement("div");
+        const portionLabels = featured ? [...new Set(chunk.items.flatMap(ref =>
+          (ref.item.portions || []).map(portion => portion.label)))] : [];
+        if (portionLabels.length) sectionDiv.style.setProperty("--portion-count", portionLabels.length);
         sectionDiv.className = "section" + (chunk.continued ? " section-continued" : "");
         sectionDiv.dataset.sectionIndex = chunk.sectionIndex;
         if (!chunk.items.some(ref => ref.item.available !== false)) sectionDiv.classList.add("empty-for-customers");
@@ -1031,7 +1031,7 @@ function render() {
         if (featured && portionLabels.length) {
           const priceHeader = document.createElement("div");
           priceHeader.className = "featured-price-header";
-          priceHeader.innerHTML = `<span>${escapeHtml(printedText.biryaniSubtitle)}</span><div>${portionLabels.map(label => `<span>${escapeHtml(label)}</span>`).join("")}</div>`;
+          priceHeader.innerHTML = `<span>${escapeHtml(chunk.name.trim().toLowerCase() === "biryani" ? printedText.biryaniSubtitle : "")}</span><div>${portionLabels.map(label => `<span>${escapeHtml(label)}</span>`).join("")}</div>`;
           sectionDiv.appendChild(priceHeader);
         }
 
@@ -1881,6 +1881,7 @@ function checkPageOverflow() {
 function fitPages() {
   if (!requireManager()) return;
   const columns = designData.columnCount === 1 ? 1 : 2;
+  const featuredContinuations = new Map();
   const itemCount = menuData.reduce((count, section) => count + section.items.length, 0);
   const limit = Math.max(10, itemCount * (itemCount + menuPages.length) * columns);
   let steps = 0;
@@ -1888,12 +1889,10 @@ function fitPages() {
     const overflow = overflowingColumns()[0];
     if (!overflow) break;
     const page = menuPages[overflow.pageIndex];
-    if (page.layout === "biryani") {
-      alert("The dedicated biryani page is too tall. Reduce the font size or shorten descriptions to keep all biryanis together.");
-      break;
-    }
+    const featured = page.layout === "biryani";
+    const pageColumns = featured ? 1 : columns;
     const sections = menuData.filter(section => section.pageId === page.id &&
-      (columns === 1 ? 0 : section.column) === overflow.column && section.items.some(item => item.available !== false && itemHasPrice(item)));
+      (pageColumns === 1 ? 0 : section.column) === overflow.column && section.items.some(item => item.available !== false && itemHasPrice(item)));
     const section = sections[sections.length - 1];
     if (!section) break;
     const visibleItems = sections.reduce((count, entry) => count + entry.items.filter(item => item.available !== false && itemHasPrice(item)).length, 0);
@@ -1919,13 +1918,19 @@ function fitPages() {
       cutIndex = section.items.findIndex((item, index) => index > firstVisibleIndex && item.available !== false && itemHasPrice(item));
     }
     document.body.classList.remove("measure-layout");
-    const next = nextColumnPosition({ page: overflow.pageIndex, col: overflow.column }, columns);
-    if (menuPages[next.page]?.layout === "biryani") {
+    const next = nextColumnPosition({ page: overflow.pageIndex, col: overflow.column }, pageColumns);
+    if (featured) {
+      if (!featuredContinuations.has(page.id)) {
+        const continuation = { id: newPageId(), title: "Biryani continued", layout: "biryani" };
+        menuPages.splice(next.page, 0, continuation);
+        featuredContinuations.set(page.id, continuation.id);
+      }
+    } else if (menuPages[next.page]?.layout === "biryani") {
       menuPages.splice(next.page, 0, { id: newPageId(), title: "Menu continued" });
     }
     if (!menuPages[next.page]) menuPages.push({ id: newPageId(), title: `Page ${menuPages.length + 1}` });
     const destinationId = menuPages[next.page].id;
-    const firstSection = menuData.find(entry => entry.pageId === destinationId && (columns === 1 ? 0 : entry.column) === next.col);
+    const firstSection = menuData.find(entry => entry.pageId === destinationId && (pageColumns === 1 ? 0 : entry.column) === next.col);
     let destination = firstSection?.name === section.name ? firstSection : null;
     if (moveWholeSection && !destination) {
       menuData.splice(menuData.indexOf(section), 1);

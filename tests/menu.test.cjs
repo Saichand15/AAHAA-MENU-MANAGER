@@ -73,6 +73,32 @@ test("all 13 biryani rows match the supplied four-size price sheet", () => {
   assert.equal(items[12].veg, undefined);
 });
 
+test("A4 auto-fit keeps Biryani and Extras ordered on a full-width continuation", () => {
+  const menu = app();
+  menu.run(`
+    menuPages = [{id:"p1",title:"Biryani",layout:"biryani"},{id:"p2",title:"Desserts"}];
+    menuData = [
+      {name:"Biryani",pageId:"p1",column:0,items:[
+        {name:"A",price:"$10.99"},{name:"B",price:"$11.99"},{name:"C",price:"$12.99"}
+      ]},
+      {name:"Extras",pageId:"p1",column:0,items:[{name:"Raita",price:"$0.50"}]},
+      {name:"Desserts",pageId:"p2",column:0,items:[{name:"Kulfi",price:"$4.99"}]}
+    ];
+    document.body.classList.add = document.body.classList.remove = () => {};
+    document.querySelector = () => ({querySelector: () => ({getBoundingClientRect: () => ({height:40})})});
+    overflowingColumns = () => {
+      const count = menuData.filter(s => s.pageId === "p1").reduce((n,s) => n + s.items.length,0);
+      return count > 2 ? [{pageIndex:0,pageNumber:1,column:0,excess:40*(count-2)}] : [];
+    };
+    fitPages();
+  `);
+  assert.deepEqual(menu.json("menuPages.map(p => [p.title,p.layout])"),
+    [["Biryani", "biryani"], ["Biryani continued", "biryani"], ["Desserts", null]]);
+  assert.deepEqual(menu.json("buildPages().map(p => p.cols.flat().map(s => [s.name, s.items.map(r => r.item.name)]))"),
+    [[["Biryani", ["A", "B"]]], [["Biryani", ["C"]], ["Extras", ["Raita"]]], [["Desserts", ["Kulfi"]]]]);
+  assert.deepEqual(menu.alerts, []);
+});
+
 test("legacy chunks consolidate and migrate without losing items or empty sections", () => {
   const menu = app([
     { page: 2, col: "L", name: "Soup", items: [{ name: "A", price: "$1.00" }] },

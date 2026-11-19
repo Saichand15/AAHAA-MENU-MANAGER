@@ -653,26 +653,28 @@ body.pdf-export #catalogView { display: none !important; }
 .portion-prices > div { background: #f2e6d4; border-radius: 4px; padding: 5px 7px; display: flex; justify-content: space-between; gap: 5px; }
 .portion-prices strong { color: var(--accent); white-space: nowrap; font-weight: var(--price-weight); }
 .featured-biryani .section h2 {
-  display: block; background: none; color: var(--accent); font-size: 30px;
-  letter-spacing: 3px; text-transform: uppercase; padding: 4px 0;
+  display: block; background: none; color: var(--accent); font-size: 24px;
+  letter-spacing: 2px; text-transform: uppercase; padding: 2px 0;
 }
-.featured-biryani .section-head { justify-content: center; }
-.featured-biryani .section-flourish { justify-content: center; margin-bottom: 16px; }
+.featured-biryani .section { margin-bottom: 8px; }
+.featured-biryani .section-head { justify-content: center; margin-bottom: 3px; }
+.featured-biryani .section-flourish { justify-content: center; margin-bottom: 6px; }
 .featured-price-header, .featured-biryani .item {
-  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 12px;
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 2px 10px;
   align-items: center;
 }
 .featured-price-header {
-  color: #713e24; background: #f2e6d4; padding: 10px 8px; border-radius: 6px;
+  color: #713e24; background: #f2e6d4; padding: 5px 8px; border-radius: 6px;
   font: 11px var(--heading-font); font-weight: 600; margin-bottom: 4px;
+  overflow-wrap: anywhere;
 }
 .featured-price-header > div, .featured-biryani .portion-prices {
   display: grid; grid-template-columns: repeat(var(--portion-count), minmax(0, 1fr)); gap: 4px;
   text-align: center;
 }
-.featured-biryani .item { padding: 10px 8px; min-height: 48px; }
+.featured-biryani .item { padding: 4px 8px; line-height: 1.25; }
 .featured-biryani .item:nth-child(even) { background: #fcf4e8; }
-.featured-biryani .item .name { font-size: var(--item-font-size); }
+.featured-biryani .item .name { font-size: var(--item-font-size); overflow-wrap: anywhere; }
 .featured-biryani .item .spice { font-size: 12px; }
 .featured-biryani .item-top { flex-wrap: wrap; gap: 3px; }
 .featured-biryani .item-actions { max-width: none; width: 100%; }
@@ -683,6 +685,7 @@ body.pdf-export #catalogView { display: none !important; }
   clip: rect(0, 0, 0, 0); white-space: nowrap;
 }
 .featured-biryani .item-desc, .featured-biryani .availability-label { grid-column: 1 / -1; }
+.featured-biryani .item-desc { margin-top: 0; overflow-wrap: anywhere; }
 .availability-label { color: #9c2828; font: 10px 'Poppins', sans-serif; }
 .unavailable { opacity: .6; }
 .modal-box { width: min(560px, 94vw); }
